@@ -1,0 +1,6 @@
+.DS_Store
+*.tar.gz
+*.json
+*.bottle.*
+test_bottle.sh
+.claude

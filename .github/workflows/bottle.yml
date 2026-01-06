@@ -1,0 +1,404 @@
+name: Build Bottles
+
+concurrency:
+  group: bottle-build
+  cancel-in-progress: false
+
+on:
+  schedule:
+    # Run every Sunday at midnight UTC
+    - cron: "0 0 * * 0"
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to tag (e.g., 1.0.0 or 2025.12.27)'
+        required: false
+        default: ''
+      release:
+        description: 'Create GitHub release?'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  determine-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      qemu_commit: ${{ steps.qemu_commit.outputs.commit }}
+      create_release: ${{ steps.version.outputs.create_release }}
+    steps:
+      - name: Checkout tap
+        uses: actions/checkout@v4
+
+      - id: qemu_commit
+        run: |
+          # Get latest QEMU commit hash from upstream GitLab
+          COMMIT=$(git ls-remote https://gitlab.com/qemu-project/qemu.git HEAD | awk '{ print $1 }')
+          SHORT_COMMIT=${COMMIT:0:8}
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "qemu commit: $SHORT_COMMIT"
+
+      - id: version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+
+          # If no version specified, use git describe to determine next version
+          if [ -z "$VERSION" ]; then
+            # Get git describe output (e.g., v1.0.5-2-gf20b3d8)
+            DESCRIBE=$(git describe --tags 2>/dev/null || echo "v1.0.0")
+
+            # Check if we're ahead of a tag (contains dash)
+            if [[ "$DESCRIBE" =~ "-" ]]; then
+              # Extract current version from describe (first part before dash)
+              CURRENT=$(echo "$DESCRIBE" | cut -d- -f1 | sed 's/^v//')
+              COMMITS_AHEAD=$(echo "$DESCRIBE" | cut -d- -f2)
+              echo "Current tag: v$CURRENT, $COMMITS_AHEAD commits ahead"
+              # Increment patch version
+              VERSION=$(echo "$CURRENT" | awk -F. '{print $1"."$2"."$3+1}')
+            else
+              # Exactly on a tag, increment it
+              CURRENT=${DESCRIBE#v}
+              VERSION=$(echo "$CURRENT" | awk -F. '{print $1"."$2"."$3+1}')
+              echo "On tag v$CURRENT, incrementing to v$VERSION"
+            fi
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+          # Create release for scheduled runs and workflow_dispatch with release=true
+          # Push events do NOT create releases (only update source tarball)
+          if [ "${{ github.event.inputs.release }}" = "true" ] || [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "create_release=true" >> $GITHUB_OUTPUT
+            echo "DEBUG: create_release=true"
+          else
+            echo "create_release=false" >> $GITHUB_OUTPUT
+            echo "DEBUG: create_release=false"
+          fi
+          # Verify the output was set
+          echo "DEBUG: Final create_release value check"
+
+  update-source-tarball:
+    needs: determine-version
+    runs-on: ubuntu-latest
+    # Only run on push events (when create_release=false)
+    # Also skip when we're building bottles (create_release=true)
+    # Skip if the HEAD commit is from this job (to prevent infinite loop)
+    if: github.event_name == 'push' && needs.determine-version.outputs.create_release == 'false'
+    steps:
+      - name: Checkout tap
+        uses: actions/checkout@v4
+
+      - name: Check if we should run
+        id: check
+        run: |
+          # Skip if HEAD commit is from update-source-tarball job (prevents infinite loop)
+          if git log -1 --pretty=%B | grep -q "source tarball sha256 to"; then
+            echo "Skipping: HEAD commit is from update-source-tarball job"
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          else
+            # Also skip if HEAD commit is from publish-bottles job (tag will be updated after release)
+            if git log -1 --pretty=%B | grep -q "Update to v.* with bottles"; then
+              echo "Skipping: HEAD commit is from publish-bottles job, tag was just updated"
+              echo "should_run=false" >> $GITHUB_OUTPUT
+            else
+              echo "should_run=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Set up Git
+        if: steps.check.outputs.should_run == 'true'
+        uses: Homebrew/actions/git-user-config@master
+        with:
+          username: "startergo"
+
+      - name: Update tag and calculate new sha256
+        if: steps.check.outputs.should_run == 'true'
+        run: |
+          # Extract version from formula URL (not the calculated next version)
+          VERSION=$(grep 'url.*archive/refs/tags/v' Formula/qemu.rb 2>/dev/null | sed -E 's/.*v([0-9.]+)\.tar\.gz.*/\1/')
+
+          # Force update the existing tag to point to current HEAD
+          # This updates the tarball at refs/tags/v$VERSION to contain latest code
+          git tag -f "v$VERSION" HEAD
+          git push -f origin "v$VERSION"
+          echo "Updated tag v$VERSION to point to commit $(git rev-parse HEAD)"
+
+          # Wait a moment for GitHub to update the tarball
+          sleep 5
+
+          # Download the updated tarball and calculate its sha256
+          TARBALL_URL="https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/archive/refs/tags/v${VERSION}.tar.gz"
+          echo "Downloading tarball from: $TARBALL_URL"
+          curl -L -o "qemu-${VERSION}.tar.gz" "$TARBALL_URL"
+
+          # Calculate sha256
+          NEW_SHA256=$(sha256sum "qemu-${VERSION}.tar.gz" | awk '{print $1}')
+          echo "New sha256: $NEW_SHA256"
+
+          # Update formula with new sha256
+          awk -v new_sha256="$NEW_SHA256" '
+            /^  sha256/ && !in_bottle {
+              print "  sha256 \"" new_sha256 "\""
+              next
+            }
+            /^  bottle do/ { in_bottle=1 }
+            /^  end/ && in_bottle { in_bottle=0 }
+            { print }
+          ' Formula/qemu.rb > Formula/qemu.rb.tmp
+          mv Formula/qemu.rb.tmp Formula/qemu.rb
+
+          # Show the updated formula for verification
+          echo "=== Updated formula ==="
+          head -15 Formula/qemu.rb
+
+          # Commit and push formula
+          git add Formula/qemu.rb
+          git commit -m "Update $VERSION source tarball sha256 to $NEW_SHA256"
+          git push origin master
+
+  build-and-publish-bottles:
+    needs: [determine-version, update-source-tarball]
+    runs-on: macos-latest
+    # Only run when create_release=true (workflow_dispatch or schedule)
+    # always() ensures this runs even if update-source-tarball was skipped
+    if: always() && needs.determine-version.outputs.create_release == 'true' && (needs.update-source-tarball.result == 'success' || needs.update-source-tarball.result == 'skipped')
+    env:
+      VERSION: ${{ needs.determine-version.outputs.version }}
+      QEMU_COMMIT: ${{ needs.determine-version.outputs.qemu_commit }}
+    steps:
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Set up Git
+        uses: Homebrew/actions/git-user-config@master
+        with:
+          username: "startergo"
+
+      - name: Checkout tap
+        uses: actions/checkout@v4
+
+      - name: Show formula state before update
+        run: |
+          echo "=== Formula before ==="
+          head -20 Formula/qemu.rb
+
+      - name: Update formula to new version (uncommitted)
+        run: |
+          VERSION="${{ needs.determine-version.outputs.version }}"
+          COMMIT=$(git rev-parse HEAD)
+          echo "=== Updating formula: version $VERSION, url to commit $COMMIT ==="
+
+          # Add version line and update URL to point to current commit
+          # This ensures version and URL are in sync for correct bottle filename
+          awk -v new_version="$VERSION" -v commit="$COMMIT" '
+            BEGIN { inserted = 0 }
+            /^  url "https:\/\/github.com\/startergo\/homebrew-qemu-virgl-kosmickrisp\/archive\/refs\/tags\// {
+              if (!inserted) {
+                print "  version \"" new_version "\""
+                inserted = 1
+              }
+              print "  url \"https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/archive/" commit ".tar.gz\""
+              next
+            }
+            { print }
+          ' Formula/qemu.rb > Formula/qemu.rb.tmp
+          mv Formula/qemu.rb.tmp Formula/qemu.rb
+
+          echo "=== Formula updated (version $VERSION, url to commit) ==="
+          head -20 Formula/qemu.rb
+
+          # Download commit tarball and calculate its sha256
+          # This is needed because the commit tarball has different content than the tag tarball
+          TARBALL_URL="https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/archive/${COMMIT}.tar.gz"
+          echo "=== Downloading commit tarball to calculate sha256 ==="
+          echo "URL: $TARBALL_URL"
+          curl -L -o "commit.tar.gz" "$TARBALL_URL"
+          COMMIT_SHA256=$(shasum -a 256 commit.tar.gz | awk '{print $1}')
+          echo "Commit tarball sha256: $COMMIT_SHA256"
+
+          # Update formula with the commit tarball's sha256
+          awk -v new_sha256="$COMMIT_SHA256" '
+            BEGIN { in_bottle=0 }
+            /^  sha256/ && !in_bottle {
+              print "  sha256 \"" new_sha256 "\""
+              next
+            }
+            /^  bottle do/ { in_bottle=1 }
+            /^  end/ && in_bottle { in_bottle=0 }
+            { print }
+          ' Formula/qemu.rb > Formula/qemu.rb.tmp
+          mv Formula/qemu.rb.tmp Formula/qemu.rb
+
+          echo "=== Formula with updated sha256 ==="
+          head -20 Formula/qemu.rb
+
+          # Save COMMIT_SHA256 for the Build bottle step
+          echo "$COMMIT_SHA256" > commit_sha256.txt
+
+      - name: Build bottle
+        run: |
+          set -x
+          TAP_DIR="$(brew --repository)/Library/Taps/startergo/homebrew-qemu-virgl-kosmickrisp"
+          mkdir -p "$TAP_DIR/Formula"
+
+          CURRENT_DIR="$(pwd)"
+          if [ -L "$TAP_DIR" ] && [ "$(readlink -f "$TAP_DIR")" = "$(readlink -f "$CURRENT_DIR")" ]; then
+            echo "Tap is symlinked to current directory, skipping copy"
+          else
+            # Copy the formula to the tap
+            echo "Copying formula to tap..."
+            cp Formula/qemu.rb "$TAP_DIR/Formula/"
+
+            # Copy patches directory to tap (needed by formula install block)
+            if [ -d "patches" ]; then
+              echo "Copying patches directory to tap..."
+              cp -r patches "$TAP_DIR/"
+              echo "Copied patches directory to tap"
+              ls -la patches/
+              ls -la "$TAP_DIR/patches/"
+            fi
+          fi
+
+          export HOMEBREW_NO_INSTALL_FROM_API=1
+          brew uninstall qemu --force 2>/dev/null || true
+
+          # Install dependencies first
+          brew tap startergo/virglrenderer
+          brew tap startergo/libepoxy
+          brew tap startergo/angle
+          brew install meson ninja pkg-config
+
+          # Build bottle
+          brew install --build-bottle startergo/qemu-virgl-kosmickrisp/qemu
+          brew link --overwrite qemu || true
+
+          # Create bottle
+          brew bottle --json --root-url="https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/releases/download/v${VERSION}" --force-core-tap "$TAP_DIR/Formula/qemu.rb"
+
+          # Save formula before merge
+          cp Formula/qemu.rb Formula/qemu.rb.before-merge
+
+          # Merge JSON into formula
+          brew bottle --merge --write *.json
+
+          # Restore explicit version if needed
+          if ! grep -q "^  version \"$VERSION\"" Formula/qemu.rb; then
+            awk -v new_version="$VERSION" '
+              /^  sha256/ && !in_bottle {
+                print "  version \"" new_version "\""
+              }
+              { print }
+            ' Formula/qemu.rb > Formula/qemu.rb.tmp
+            mv Formula/qemu.rb.tmp Formula/qemu.rb
+          fi
+
+      - name: Rename bottle to single-dash format
+        run: |
+          for json in *.json; do
+            SINGLE_DASH=$(jq -r '[.. | objects | select(.filename) | .filename] | join(",")' "$json" 2>/dev/null | head -1)
+            if [ -n "$SINGLE_DASH" ]; then
+              DOUBLE_DASH=$(ls qemu--*.tar.gz 2>/dev/null | head -1)
+              if [ -n "$DOUBLE_DASH" ]; then
+                mv "$DOUBLE_DASH" "$SINGLE_DASH"
+              fi
+            fi
+          done
+
+      - name: Configure git credentials
+        run: |
+          git config --global url.https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/.insteadOf https://github.com/
+
+      - name: Update formula with version and tag URL (temporary)
+        run: |
+          VERSION="${{ needs.determine-version.outputs.version }}"
+
+          echo "=== Updating formula: version $VERSION, tag URL ==="
+
+          # Update formula with version and tag URL (keep existing sha256 temporarily)
+          awk -v version="$VERSION" '
+            BEGIN { in_bottle=0; added_version=0; printed_version=0 }
+            /^  version / {
+              if (!printed_version) {
+                print "  version \"" version "\""
+                printed_version=1
+              }
+              added_version=1
+              next
+            }
+            /^  url "https:\/\/github.com\/startergo\/homebrew-qemu-virgl-kosmickrisp\/archive\// {
+              if (!added_version) {
+                print "  version \"" version "\""
+                printed_version=1
+                added_version=1
+              }
+              print "  url \"https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/archive/refs/tags/v" version ".tar.gz\""
+              next
+            }
+            { print }
+          ' Formula/qemu.rb > Formula/qemu.rb.tmp
+          mv Formula/qemu.rb.tmp Formula/qemu.rb
+
+          echo "=== Formula with tag URL (temporary) ==="
+          head -20 Formula/qemu.rb
+
+          git add Formula/qemu.rb
+          git commit -m "Update to v$VERSION with bottles"
+          git push origin master
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.determine-version.outputs.version }}"
+
+          gh release create "v$VERSION" \
+            --title "qemu-virgl-kosmickrisp v$VERSION" \
+            --notes "Built from upstream QEMU commit: $QEMU_COMMIT
+
+          ### Bottles
+          $(ls *.tar.gz 2>/dev/null | sed 's/^/- /' || echo '')" \
+            --latest || true
+
+          for tarball in qemu-*.tar.gz; do
+            if [ -f "$tarball" ]; then
+              gh release upload "v$VERSION" "$tarball" || true
+            fi
+          done
+
+      - name: Update formula with tag tarball sha256
+        run: |
+          VERSION="${{ needs.determine-version.outputs.version }}"
+          TARBALL_URL="https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/archive/refs/tags/v${VERSION}.tar.gz"
+          echo "Downloading tag tarball to calculate sha256: $TARBALL_URL"
+          curl -L -o "tag-tarball.tar.gz" "$TARBALL_URL"
+          TAG_SHA256=$(shasum -a 256 tag-tarball.tar.gz | awk '{print $1}')
+          echo "Tag tarball sha256: $TAG_SHA256"
+
+          # Update formula with tag tarball sha256
+          awk -v new_sha256="$TAG_SHA256" '
+            BEGIN { in_bottle=0 }
+            /^  sha256/ && !in_bottle {
+              print "  sha256 \"" new_sha256 "\""
+              next
+            }
+            /^  bottle do/ { in_bottle=1 }
+            /^  end/ && in_bottle { in_bottle=0 }
+            { print }
+          ' Formula/qemu.rb > Formula/qemu.rb.tmp
+          mv Formula/qemu.rb.tmp Formula/qemu.rb
+
+          echo "=== Formula with tag sha256 ==="
+          head -20 Formula/qemu.rb
+
+          git add Formula/qemu.rb
+          git commit --amend --no-edit
+          git push -f origin master
