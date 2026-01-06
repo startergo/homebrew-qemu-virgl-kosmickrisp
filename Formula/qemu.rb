@@ -16,9 +16,7 @@ class Qemu < Formula
     sha256 arm64_sequoia: "e18007b1cb54462f601d18d7bc518b4f225fc15982bb13590f46a714a03d390b"
   end
 
-  # Dependencies for GPU acceleration  
-  depends_on "startergo/angle/angle"
-  depends_on "startergo/libepoxy/libepoxy"
+  # Dependencies for GPU acceleration
   depends_on "startergo/virglrenderer/virglrenderer"
 
   # Core dependencies

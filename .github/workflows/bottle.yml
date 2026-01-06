@@ -281,8 +281,11 @@ jobs:
               break
             fi
             if [ $attempt -lt 5 ]; then
-              echo "Install failed (attempt $attempt/5), waiting 30s before retry..."
-              sleep 30
+              echo "Install failed (attempt $attempt/5), cleaning up and retrying..."
+              brew uninstall qemu --force 2>/dev/null || true
+              # Kill any hanging brew processes
+              pkill -9 -f "brew" 2>/dev/null || true
+              sleep 15
             else
               echo "Install failed after 5 attempts"
               exit 1
