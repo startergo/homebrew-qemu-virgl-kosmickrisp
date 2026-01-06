@@ -8,9 +8,6 @@ class Qemu < Formula
   sha256 "1d80c8d02e70f850c99b530ff5a48974bbb0ec0a689190d4911cba3a975c2686"
   head "https://gitlab.com/qemu-project/qemu.git", branch: "master"
 
-  # Apply patch for OpenGL 4.1 support (virgl renderer improvements)
-  patch :p1, "#{__dir__}/../patches/qemu-opengl41.patch"
-
   bottle do
     root_url "https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/releases/download/v1.0.1"
     sha256 arm64_sequoia: "e18007b1cb54462f601d18d7bc518b4f225fc15982bb13590f46a714a03d390b"
@@ -55,6 +52,11 @@ class Qemu < Formula
     system "curl", "-L", upstream_url, "-o", "qemu.tar.gz"
     system "tar", "-xzf", "qemu.tar.gz", "--strip-components=1"
 
+    # Apply patch for OpenGL 4.1 support (virgl renderer improvements)
+    patch_file = "#{__dir__}/../patches/qemu-opengl41.patch"
+    ohai "Applying OpenGL 4.1 support patch..."
+    system "patch", "-p1", "--batch", "--verbose", "-i", patch_file
+
     # Get dependency paths for GPU acceleration   
     angle = Formula["startergo/angle/angle"]
     libepoxy = Formula["startergo/libepoxy/libepoxy"]
@@ -74,6 +76,7 @@ class Qemu < Formula
       --host-cc=#{ENV.cc}
       --enable-virglrenderer
       --enable-opengl
+      --enable-cocoa
       --disable-gtk
       --disable-guest-agent
       --disable-guest-agent-msi
