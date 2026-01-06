@@ -31,7 +31,7 @@ This tap requires the following taps:
 
 ```bash
 qemu-system-x86_64 \
-  -display gtk,gl=on \
+  -display cocoa,gl=on \
   -virtio-gpu-gl,present=on \
   -device virtio-gpu-pci,gl=true \
   ...
@@ -41,7 +41,7 @@ qemu-system-x86_64 \
 
 ```bash
 qemu-system-x86_64 \
-  -display gtk,gl=on \
+  -display cocoa,gl=on \
   -virtio-gpu-gl,present=on \
   -device virtio-gpu-pci,gl=true \
   ...
@@ -54,7 +54,7 @@ qemu-system-x86_64 \
 - **virtio-gpu-gl support**: Enabled with virglrenderer integration
 - **OpenGL ES support**: Via ANGLE through virglrenderer
 - **Venus support**: Modern virtio-gpu Vulkan transport via LunarG Vulkan SDK (includes KosmicKrisp, a Vulkan-to-Metal layered driver for Apple Silicon)
-- **UI backends**: GTK (with OpenGL), Cocoa, SDL
+- **UI backends**: Cocoa, SDL (GTK disabled to avoid dependency conflicts)
 
 ## Build Configuration
 

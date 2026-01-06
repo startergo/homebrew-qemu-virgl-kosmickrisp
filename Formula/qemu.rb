@@ -76,6 +76,7 @@ class Qemu < Formula
       --disable-debug
       --disable-silent-rules
       --enable-virglrenderer
+      --disable-gtk
       --disable-guest-agent
       --disable-guest-agent-msi
     ]
