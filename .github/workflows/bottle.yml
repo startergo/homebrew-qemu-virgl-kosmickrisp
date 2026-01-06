@@ -271,6 +271,18 @@ jobs:
           export HOMEBREW_NO_INSTALL_FROM_API=1
           brew uninstall qemu --force 2>/dev/null || true
 
+          # Wait for any brew locks to be released (check lock files)
+          echo "Checking for brew locks..."
+          for i in {1..60}; do
+            LOCKS=$(find /opt/homebrew/Cellar -name ".lock" 2>/dev/null | wc -l)
+            if [ "$LOCKS" -eq 0 ]; then
+              echo "No locks found, proceeding"
+              break
+            fi
+            echo "Waiting for $LOCKS lock(s) to be released... ($i/60)"
+            sleep 2
+          done
+
           # Build bottle (dependencies auto-install via formula depends_on)
           brew install --build-bottle startergo/qemu-virgl-kosmickrisp/qemu
           brew link --overwrite qemu || true
