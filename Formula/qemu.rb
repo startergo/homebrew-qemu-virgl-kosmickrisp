@@ -5,7 +5,7 @@ class Qemu < Formula
 
   version "1.0.1"
   url "https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/archive/refs/tags/v1.0.1.tar.gz"
-  sha256 "874a4b5805d0ec3a39d18f7af501b1bdf799dd92eb0e3e9ae3a7469771ddc653"
+  sha256 "1d80c8d02e70f850c99b530ff5a48974bbb0ec0a689190d4911cba3a975c2686"
   head "https://gitlab.com/qemu-project/qemu.git", branch: "master"
 
   # Apply patch for OpenGL 4.1 support (virgl renderer improvements)
