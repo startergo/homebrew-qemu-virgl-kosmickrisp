@@ -57,6 +57,40 @@ class Qemu < Formula
     ohai "Applying OpenGL 4.1 support patch..."
     system "patch", "-p1", "--batch", "--verbose", "-i", patch_file
 
+    # Download and extract LunarG Vulkan SDK for Venus (KosmicKrisp) support
+    vulkan_sdk_version = "1.4.335.1"
+    vulkan_sdk_url = "https://sdk.lunarg.com/sdk/download/#{vulkan_sdk_version}/mac/vulkansdk-macos-#{vulkan_sdk_version}.zip"
+    ohai "Downloading LunarG Vulkan SDK #{vulkan_sdk_version}..."
+    system "curl", "-L", vulkan_sdk_url, "-o", "vulkan-sdk.zip"
+    system "unzip", "-q", "vulkan-sdk.zip"
+
+    # Run CLI installer to extract SDK (installs to /usr/local in build env)
+    vulkan_app = "vulkansdk-macos-#{vulkan_sdk_version}.app"
+    ohai "Extracting Vulkan SDK..."
+    system "python3", "#{vulkan_app}/Contents/Resources/install_vulkan.py",
+           "--install-json-location=#{vulkan_app}/Contents/Resources",
+           "--force-install"
+
+    # Install Vulkan ICD file, driver library, and loader for KosmicKrisp (runtime Venus support)
+    # The SDK installer writes to /usr/local regardless of architecture
+    vulkan_source = "/usr/local"
+    vulkan_icd = "#{vulkan_source}/share/vulkan/icd.d/libkosmickrisp_icd.json"
+    vulkan_driver = "#{vulkan_source}/lib/libvulkan_kosmickrisp.dylib"
+    vulkan_loader = "#{vulkan_source}/lib/libvulkan.1.4.335.dylib"
+
+    unless File.exist?(vulkan_icd) && File.exist?(vulkan_driver) && File.exist?(vulkan_loader)
+      odie "Vulkan SDK not found in #{vulkan_source}. " \
+            "Install from https://vulkan.lunarg.com/sdk/home or use bottled binaries."
+    end
+
+    mkdir_p "#{share}/vulkan/icd.d"
+    mkdir_p "#{lib}"
+    cp vulkan_icd, "#{share}/vulkan/icd.d/"
+    cp vulkan_driver, "#{lib}/"
+    cp vulkan_loader, "#{lib}/"
+    ln_sf "libvulkan.1.4.335.dylib", "#{lib}/libvulkan.1.dylib"
+    ln_sf "libvulkan.1.dylib", "#{lib}/libvulkan.dylib"
+
     # Get dependency paths for GPU acceleration   
     angle = Formula["startergo/angle/angle"]
     libepoxy = Formula["startergo/libepoxy/libepoxy"]

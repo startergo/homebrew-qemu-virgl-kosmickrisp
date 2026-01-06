@@ -50,8 +50,16 @@ qemu-system-x86_64 \
 
 Venus is a modern virtio-gpu Vulkan transport available in QEMU v9.2.0 and later.
 
+The Vulkan runtime (loader, driver, ICD) is installed with QEMU at:
+```
+$(brew --prefix qemu)/lib/libvulkan.dylib
+$(brew --prefix qemu)/lib/libvulkan_kosmickrisp.dylib
+$(brew --prefix qemu)/share/vulkan/icd.d/libkosmickrisp_icd.json
+```
+
 ```bash
-export VK_ICD_FILENAMES=/opt/homebrew/share/vulkan/icd.d/moltencvk_icd.json
+export VK_DRIVER_FILES=$(brew --prefix qemu)/share/vulkan/icd.d/libkosmickrisp_icd.json
+export DYLD_LIBRARY_PATH=$(brew --prefix qemu)/lib:$DYLD_LIBRARY_PATH
 
 qemu-system-x86_64 \
   -display cocoa,gl=core \
@@ -60,11 +68,11 @@ qemu-system-x86_64 \
   ...
 ```
 
-Note: Venus support requires the LunarG Vulkan SDK (included in virglrenderer build) and appropriate ICD configuration.
+Note: The KosmicKrisp driver (ICD file + dylib) is bundled with QEMU. No separate Vulkan SDK installation is required.
 
 ## What's Included
 
-- **QEMU system binaries**: qemu-system-x86_64, qemu-system-aarch64, qemu-system-arm, etc.
+- **QEMU system binaries**: qemu-system-x86_64, qemu-system-aarch64, qemu-system-i386
 - **QEMU tools**: qemu-img, qemu-nbd, qemu-keymap, etc.
 - **virtio-gpu-gl support**: Enabled with virglrenderer integration
 - **OpenGL ES support**: Via ANGLE through virglrenderer
