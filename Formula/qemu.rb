@@ -9,7 +9,7 @@ class Qemu < Formula
   head "https://gitlab.com/qemu-project/qemu.git", branch: "master"
 
   # Apply patch for OpenGL 4.1 support (virgl renderer improvements)
-  patch :p1, :path => "#{__dir__}/../patches/qemu-opengl41.patch"
+  patch :p1, "#{__dir__}/../patches/qemu-opengl41.patch"
 
   bottle do
     root_url "https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/releases/download/v1.0.1"
@@ -73,6 +73,7 @@ class Qemu < Formula
       --cc=#{ENV.cc}
       --host-cc=#{ENV.cc}
       --enable-virglrenderer
+      --enable-opengl
       --disable-gtk
       --disable-guest-agent
       --disable-guest-agent-msi
