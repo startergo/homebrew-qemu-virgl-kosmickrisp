@@ -72,8 +72,6 @@ class Qemu < Formula
       --prefix=#{prefix}
       --cc=#{ENV.cc}
       --host-cc=#{ENV.cc}
-      --disable-debug
-      --disable-silent-rules
       --enable-virglrenderer
       --disable-gtk
       --disable-guest-agent

@@ -271,26 +271,8 @@ jobs:
           export HOMEBREW_NO_INSTALL_FROM_API=1
           brew uninstall qemu --force 2>/dev/null || true
 
-          # Clean up stale lock files from previous runs in shared runner
-          find /opt/homebrew/Cellar -name ".lock" -type f -mmin +5 -delete 2>/dev/null || true
-
           # Build bottle (dependencies auto-install via formula depends_on)
-          # Retry on lock errors (common in shared runners)
-          for attempt in {1..5}; do
-            if brew install --build-bottle startergo/qemu-virgl-kosmickrisp/qemu; then
-              break
-            fi
-            if [ $attempt -lt 5 ]; then
-              echo "Install failed (attempt $attempt/5), cleaning up and retrying..."
-              brew uninstall qemu --force 2>/dev/null || true
-              # Kill any hanging brew processes
-              pkill -9 -f "brew" 2>/dev/null || true
-              sleep 15
-            else
-              echo "Install failed after 5 attempts"
-              exit 1
-            fi
-          done
+          brew install --build-bottle startergo/qemu-virgl-kosmickrisp/qemu
           brew link --overwrite qemu || true
 
           # Create bottle
