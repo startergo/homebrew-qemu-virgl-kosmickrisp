@@ -271,13 +271,7 @@ jobs:
           export HOMEBREW_NO_INSTALL_FROM_API=1
           brew uninstall qemu --force 2>/dev/null || true
 
-          # Install dependencies first
-          brew tap startergo/virglrenderer
-          brew tap startergo/libepoxy
-          brew tap startergo/angle
-          brew install meson ninja pkg-config
-
-          # Build bottle
+          # Build bottle (dependencies auto-install via formula depends_on)
           brew install --build-bottle startergo/qemu-virgl-kosmickrisp/qemu
           brew link --overwrite qemu || true
 
