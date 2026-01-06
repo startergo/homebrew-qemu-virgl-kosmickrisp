@@ -53,7 +53,7 @@ qemu-system-x86_64 \
 - **QEMU tools**: qemu-img, qemu-nbd, qemu-keymap, etc.
 - **virtio-gpu-gl support**: Enabled with virglrenderer integration
 - **OpenGL ES support**: Via ANGLE through virglrenderer
-- **Venus support**: Modern virtio-gpu Vulkan transport via KosmicKrisp
+- **Venus support**: Modern virtio-gpu Vulkan transport via LunarG Vulkan SDK (includes KosmicKrisp, a Vulkan-to-Metal layered driver for Apple Silicon)
 - **UI backends**: GTK (with OpenGL), Cocoa, SDL
 
 ## Build Configuration
@@ -62,7 +62,7 @@ This build is configured for macOS with GPU acceleration support:
 - **virglrenderer support**: Uses [startergo/virglrenderer](https://github.com/startergo/homebrew-virglrenderer) for GPU acceleration
 - **OpenGL ES support via ANGLE**: Through virglrenderer dependency
 - **OpenGL support via libepoxy**: Through virglrenderer dependency
-- **Venus support**: Modern virtio-gpu Vulkan transport via KosmicKrisp
+- **Venus support**: Modern virtio-gpu Vulkan transport via LunarG Vulkan SDK (includes KosmicKrisp, a Vulkan-to-Metal layered driver for Apple Silicon)
 - **Target architectures**: x86_64, aarch64, arm, and more
 - Builds against upstream QEMU master
 
@@ -76,6 +76,6 @@ GPL-2.0-or-later
 - **[virglrenderer](https://gitlab.freedesktop.org/virgl/virglrenderer)**: Virtual 3D GPU renderer (via [startergo/homebrew-virglrenderer](https://github.com/startergo/homebrew-virglrenderer))
 - **[ANGLE](https://chromium.googlesource.com/angle/angle)**: OpenGL ES implementation for macOS (via [startergo/homebrew-angle](https://github.com/startergo/homebrew-angle))
 - **[libepoxy](https://github.com/anholt/libepoxy)**: OpenGL function pointer management (via [startergo/homebrew-libepoxy](https://github.com/startergo/homebrew-libepoxy))
-- **[KosmicKrisp](https://gitlab.freedesktop.org/virgl/kosmikkrisp)**: Mesa-based Vulkan implementation for macOS
+- **[LunarG Vulkan SDK](https://vulkan.lunarg.com/doc/sdk/1.4.335.1/mac/release_notes.html)**: Vulkan SDK for macOS (includes KosmicKrisp, a Vulkan-to-Metal layered driver for Apple Silicon, currently in alpha)
 
 This tap builds against the latest upstream QEMU with macOS-specific optimizations for graphics acceleration.
