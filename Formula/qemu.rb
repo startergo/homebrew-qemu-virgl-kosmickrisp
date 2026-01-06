@@ -41,7 +41,6 @@ class Qemu < Formula
   depends_on "sdl2"
   depends_on "snappy"
   depends_on "spice-protocol"
-  depends_on "spice-server"
   depends_on "vde"
   depends_on "gmp"
   depends_on "zstd"
