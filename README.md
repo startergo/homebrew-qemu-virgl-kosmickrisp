@@ -27,11 +27,20 @@ This tap requires the following taps:
 
 ## Usage
 
+### Display Options
+
+The `-display cocoa` backend supports OpenGL rendering modes via the `gl=` option:
+
+- `gl=on` - Enable OpenGL rendering with compatibility profile
+- `gl=off` - Disable OpenGL rendering (default)
+- `gl=core` - Use OpenGL Core profile (recommended for modern OpenGL)
+- `gl=es` - Use OpenGL ES via ANGLE (for ES 2.0/3.0 support)
+
 ### Basic VM with virtio-gpu-gl
 
 ```bash
 qemu-system-x86_64 \
-  -display cocoa,gl=on \
+  -display cocoa,gl=core \
   -virtio-gpu-gl,present=on \
   -device virtio-gpu-pci,gl=true \
   ...
@@ -39,13 +48,19 @@ qemu-system-x86_64 \
 
 ### With Venus (Vulkan) support
 
+Venus is a modern virtio-gpu Vulkan transport available in QEMU v9.2.0 and later.
+
 ```bash
+export VK_ICD_FILENAMES=/opt/homebrew/share/vulkan/icd.d/moltencvk_icd.json
+
 qemu-system-x86_64 \
-  -display cocoa,gl=on \
+  -display cocoa,gl=core \
   -virtio-gpu-gl,present=on \
-  -device virtio-gpu-pci,gl=true \
+  -device virtio-gpu-pci,gl=true,venus=on \
   ...
 ```
+
+Note: Venus support requires the LunarG Vulkan SDK (included in virglrenderer build) and appropriate ICD configuration.
 
 ## What's Included
 
