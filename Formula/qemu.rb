@@ -64,26 +64,25 @@ class Qemu < Formula
     system "curl", "-L", vulkan_sdk_url, "-o", "vulkan-sdk.zip"
     system "unzip", "-q", "vulkan-sdk.zip"
 
-    # Run CLI installer to extract SDK (installs to /usr/local in build env)
+    # Run CLI installer to extract SDK to temporary directory
     vulkan_app = "vulkansdk-macOS-#{vulkan_sdk_version}.app"
+    vulkan_install_dir = "#{buildpath}/vulkansdk-install"
     ohai "Extracting Vulkan SDK..."
     system "#{vulkan_app}/Contents/MacOS/vulkansdk-macOS-#{vulkan_sdk_version}",
-           "--root", "/usr/local",
+           "--root", vulkan_install_dir,
            "--accept-licenses",
            "--default-answer",
            "--confirm-command",
            "install"
 
-    # Install Vulkan ICD file, driver library, and loader for KosmicKrisp (runtime Venus support)
-    # The SDK installer writes to /usr/local regardless of architecture
-    vulkan_source = "/usr/local"
+    # The installer creates a macOS subdirectory
+    vulkan_source = "#{vulkan_install_dir}/macOS"
     vulkan_icd = "#{vulkan_source}/share/vulkan/icd.d/libkosmickrisp_icd.json"
     vulkan_driver = "#{vulkan_source}/lib/libvulkan_kosmickrisp.dylib"
     vulkan_loader = "#{vulkan_source}/lib/libvulkan.1.4.335.dylib"
 
     unless File.exist?(vulkan_icd) && File.exist?(vulkan_driver) && File.exist?(vulkan_loader)
-      odie "Vulkan SDK not found in #{vulkan_source}. " \
-            "Install from https://vulkan.lunarg.com/sdk/home or use bottled binaries."
+      odie "Vulkan SDK installation failed. Files not found in #{vulkan_source}"
     end
 
     mkdir_p "#{share}/vulkan/icd.d"
