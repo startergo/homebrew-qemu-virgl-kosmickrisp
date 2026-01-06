@@ -287,7 +287,19 @@ jobs:
           done
 
           # Build bottle (dependencies auto-install via formula depends_on)
-          brew install --build-bottle startergo/qemu-virgl-kosmickrisp/qemu
+          # Retry on lock errors (common in shared runners)
+          for attempt in {1..5}; do
+            if brew install --build-bottle startergo/qemu-virgl-kosmickrisp/qemu; then
+              break
+            fi
+            if [ $attempt -lt 5 ]; then
+              echo "Install failed (attempt $attempt/5), waiting 30s before retry..."
+              sleep 30
+            else
+              echo "Install failed after 5 attempts"
+              exit 1
+            fi
+          done
           brew link --overwrite qemu || true
 
           # Create bottle
