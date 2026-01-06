@@ -271,16 +271,19 @@ jobs:
           export HOMEBREW_NO_INSTALL_FROM_API=1
           brew uninstall qemu --force 2>/dev/null || true
 
-          # Wait for any brew locks to be released (check lock files)
-          echo "Checking for brew locks..."
+          # Wait for any brew operations/locks to complete
+          echo "Checking for running brew operations..."
           for i in {1..60}; do
-            LOCKS=$(find /opt/homebrew/Cellar -name ".lock" 2>/dev/null | wc -l)
-            if [ "$LOCKS" -eq 0 ]; then
-              echo "No locks found, proceeding"
+            # Check for both lock files and running brew processes
+            LOCK_COUNT=$(find /opt/homebrew/Cellar -name ".lock" -o -name "INSTALL_RECEIPT.json" 2>/dev/null | wc -l | tr -d ' ')
+            BREW_PROCS=$(pgrep -f "brew install" | wc -l | tr -d ' ')
+
+            if [ "$LOCK_COUNT" -eq 0 ] && [ "$BREW_PROCS" -eq 0 ]; then
+              echo "No brew operations running, proceeding"
               break
             fi
-            echo "Waiting for $LOCKS lock(s) to be released... ($i/60)"
-            sleep 2
+            echo "Waiting: $LOCK_COUNT lock(s), $BREW_PROCS brew process(es)... ($i/60)"
+            sleep 3
           done
 
           # Build bottle (dependencies auto-install via formula depends_on)
