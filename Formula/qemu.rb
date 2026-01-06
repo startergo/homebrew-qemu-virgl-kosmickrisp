@@ -65,11 +65,14 @@ class Qemu < Formula
     system "unzip", "-q", "vulkan-sdk.zip"
 
     # Run CLI installer to extract SDK (installs to /usr/local in build env)
-    vulkan_app = "vulkansdk-macos-#{vulkan_sdk_version}.app"
+    vulkan_app = "vulkansdk-macOS-#{vulkan_sdk_version}.app"
     ohai "Extracting Vulkan SDK..."
-    system "python3", "#{vulkan_app}/Contents/Resources/install_vulkan.py",
-           "--install-json-location=#{vulkan_app}/Contents/Resources",
-           "--force-install"
+    system "#{vulkan_app}/Contents/MacOS/vulkansdk-macOS-#{vulkan_sdk_version}",
+           "--root", "/usr/local",
+           "--accept-licenses",
+           "--default-answer",
+           "--confirm-command",
+           "install"
 
     # Install Vulkan ICD file, driver library, and loader for KosmicKrisp (runtime Venus support)
     # The SDK installer writes to /usr/local regardless of architecture
