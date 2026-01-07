@@ -66,22 +66,17 @@ class Qemu < Formula
     system "unzip", "-q", "vulkan-sdk.zip"
 
     # Run installer with KosmicKrisp component (downloads from cloud)
-    # Qt installer uses ~/Library/Caches for cache via macOS-specific APIs
-    # Pre-create the cache directory to avoid permission issues in CI
+    # Use --cache-path to set writable cache directory in buildpath
     vulkan_app = "vulkansdk-macOS-#{vulkan_sdk_version}.app"
     vulkan_install_path = "#{buildpath}/vulkan-sdk"
+    qt_cache_path = "#{buildpath}/qt-cache"
+    mkdir_p qt_cache_path
     ohai "Installing Vulkan SDK with KosmicKrisp (this may take a while)..."
-
-    # Qt installer uses hardcoded UUID for cache - create directory in advance
-    # Use sudo in CI environment where /Users/runner/Library/Caches needs elevated perms
-    qt_cache_uuid = "7131a7fe-e6ca-3647-b670-745b2413b041"
-    qt_cache_path = "#{ENV["HOME"]}/Library/Caches/qt-installer-framework/#{qt_cache_uuid}"
-    system "sudo", "mkdir", "-p", qt_cache_path if !Dir.exist?(qt_cache_path)
-    system "sudo", "chmod", "777", qt_cache_path if Dir.exist?(qt_cache_path)
 
     with_env(QT_QPA_PLATFORM: "offscreen") do
       system "#{vulkan_app}/Contents/MacOS/vulkansdk-macOS-#{vulkan_sdk_version}",
              "--root", vulkan_install_path,
+             "--cache-path", qt_cache_path,
              "--accept-licenses",
              "--default-answer",
              "--confirm-command",
