@@ -66,24 +66,22 @@ class Qemu < Formula
     system "unzip", "-q", "vulkan-sdk.zip"
 
     # Run installer with KosmicKrisp component (downloads from cloud)
-    # Qt installer needs cache directory - try multiple environment variables
-    qt_cache_dir = "#{buildpath}/qt-cache"
-    mkdir_p qt_cache_dir
-
-    # Set various Qt environment variables to redirect cache
-    ENV["QT_QPA_PLATFORM"] = "offscreen"
-    ENV["XDG_CACHE_HOME"] = qt_cache_dir
-    ENV["CACHE_HOME"] = qt_cache_dir
-
+    # Qt installer uses ~/Library/Caches for cache (QStandardPaths on macOS)
+    # Override HOME to redirect cache to buildpath (avoids permission issues in CI)
     vulkan_app = "vulkansdk-macOS-#{vulkan_sdk_version}.app"
     vulkan_install_path = "#{buildpath}/vulkan-sdk"
     ohai "Installing Vulkan SDK with KosmicKrisp (this may take a while)..."
-    system "#{vulkan_app}/Contents/MacOS/vulkansdk-macOS-#{vulkan_sdk_version}",
-           "--root", vulkan_install_path,
-           "--accept-licenses",
-           "--default-answer",
-           "--confirm-command",
-           "install", "com.lunarg.vulkan.core", "com.lunarg.vulkan.kosmic"
+
+    # Set HOME to buildpath to redirect ~/Library/Caches to writable location
+    # Also set QT_QPA_PLATFORM to offscreen for headless operation
+    with_env(HOME: buildpath, QT_QPA_PLATFORM: "offscreen") do
+      system "#{vulkan_app}/Contents/MacOS/vulkansdk-macOS-#{vulkan_sdk_version}",
+             "--root", vulkan_install_path,
+             "--accept-licenses",
+             "--default-answer",
+             "--confirm-command",
+             "install", "com.lunarg.vulkan.core", "com.lunarg.vulkan.kosmic"
+    end
 
     # Copy Vulkan runtime files (loader, KosmicKrisp driver, ICD)
     mkdir_p "#{share}/vulkan/icd.d"
