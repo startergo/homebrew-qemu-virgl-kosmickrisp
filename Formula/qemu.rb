@@ -140,6 +140,12 @@ class Qemu < Formula
     system "./configure", *args
     system "make", "-j#{ENV.make_jobs}"
     system "make", "install"
+
+    # Add rpath so dlopen finds ANGLE libraries at runtime
+    # ANGLE uses @rpath/libEGL.dylib, so we need rpath to HOMEBREW_PREFIX/lib
+    Dir["#{bin}/*"].each do |binary|
+      system "install_name_tool", "-add_rpath", "#{HOMEBREW_PREFIX}/lib", binary
+    end
   end
 
   test do
