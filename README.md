@@ -54,15 +54,26 @@ $(brew --prefix qemu)/lib/libvulkan_kosmickrisp.dylib
 $(brew --prefix qemu)/share/vulkan/icd.d/libkosmickrisp_icd.json
 ```
 
+**Requirements:**
+- macOS 15+ (Sequoia) on Apple Silicon for full Vulkan 1.3 conformance
+- Mesa 26.0+ on host (KosmicKrisp was integrated in late 2025)
+
 ```bash
 export VK_DRIVER_FILES=$(brew --prefix qemu)/share/vulkan/icd.d/libkosmickrisp_icd.json
-export DYLD_LIBRARY_PATH=$(brew --prefix qemu)/lib:$DYLD_LIBRARY_PATH
+export VK_ICD_FILENAMES=$(brew --prefix qemu)/share/vulkan/icd.d/libkosmickrisp_icd.json
 
 qemu-system-x86_64 \
+  -accel hvf \
   -display cocoa,gl=core \
-  -device virtio-gpu-pci \
+  -device virtio-gpu-pci,vulkan=on,hostmem=4G \
   ...
 ```
+
+**Guest OS requirements:** Linux guest with Mesa 25.1+ for Venus support. Verify inside guest:
+```bash
+vulkaninfo | grep "device name"
+```
+Should report virtio-gpu device powered by host's KosmicKrisp.
 
 Note: The KosmicKrisp driver (ICD file + dylib) is bundled with QEMU. No separate Vulkan SDK installation is required.
 
