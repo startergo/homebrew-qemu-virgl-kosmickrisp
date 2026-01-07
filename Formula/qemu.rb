@@ -24,7 +24,7 @@ class Qemu < Formula
   depends_on "pixman"
   depends_on "libtool" => :build
   depends_on "pkg-config" => :build
-  depends_on "unar" => :build
+  depends_on "p7zip" => :build
   depends_on "ninja" => :build
   depends_on "meson" => :build
   depends_on "python@3" => :build
@@ -65,12 +65,12 @@ class Qemu < Formula
     system "curl", "-L", vulkan_sdk_url, "-o", "vulkan-sdk.zip"
     system "unzip", "-q", "vulkan-sdk.zip"
 
-    # Extract installer.dat directly (Qt installer framework fails in headless CI)
+    # Extract installer.dat using 7z (Qt installer format)
     vulkan_app = "vulkansdk-macOS-#{vulkan_sdk_version}.app"
     vulkan_install_dir = "#{buildpath}/vulkansdk-install"
     ohai "Extracting Vulkan SDK from installer archive..."
     mkdir_p vulkan_install_dir
-    system "unar", "-q", "-o", vulkan_install_dir,
+    system "7z", "x", "-y", "-o#{vulkan_install_dir}",
            "#{vulkan_app}/Contents/Resources/installer.dat"
 
     # The archive extracts to a macOS subdirectory
