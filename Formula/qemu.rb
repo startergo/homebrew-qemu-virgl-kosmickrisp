@@ -65,10 +65,10 @@ class Qemu < Formula
     system "curl", "-L", vulkan_sdk_url, "-o", "vulkan-sdk.zip"
     system "unzip", "-q", "vulkan-sdk.zip"
 
-    # installer.dat contains concatenated 7z archives - skip first to get actual SDK
+    # installer.dat contains concatenated 7z archives - skip both to get actual SDK
     vulkan_app = "vulkansdk-macOS-#{vulkan_sdk_version}.app"
     system "dd", "if=#{vulkan_app}/Contents/Resources/installer.dat",
-           "of=vulkan-sdk.7z", "bs=1", "skip=452913"
+           "of=vulkan-sdk.7z", "bs=1", "skip=2022513"
     system "7zz", "x", "-y", "-ovulkan-sdk", "vulkan-sdk.7z"
 
     # Copy Vulkan runtime files
