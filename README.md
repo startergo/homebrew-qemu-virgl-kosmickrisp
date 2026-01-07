@@ -56,7 +56,7 @@ $(brew --prefix qemu)/share/vulkan/icd.d/libkosmickrisp_icd.json
 
 **Requirements:**
 - macOS 15+ (Sequoia) on Apple Silicon for full Vulkan 1.3 conformance
-- Mesa 26.0+ on host (KosmicKrisp was integrated in late 2025)
+- LunarG Vulkan SDK 1.4.335.1 (KosmicKrisp bundled with QEMU)
 
 ```bash
 export VK_DRIVER_FILES=$(brew --prefix qemu)/share/vulkan/icd.d/libkosmickrisp_icd.json
