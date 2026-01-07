@@ -67,8 +67,9 @@ class Qemu < Formula
 
     # Run installer with KosmicKrisp component (downloads from cloud)
     # Qt installer needs a writable cache directory
-    qt_cache_dir = "#{ENV["HOME"]}/Library/Caches/qt-installer-framework"
+    qt_cache_dir = "#{buildpath}/qt-cache"
     mkdir_p qt_cache_dir
+    ENV["XDG_CACHE_HOME"] = qt_cache_dir
 
     vulkan_app = "vulkansdk-macOS-#{vulkan_sdk_version}.app"
     vulkan_install_path = "#{buildpath}/vulkan-sdk"
