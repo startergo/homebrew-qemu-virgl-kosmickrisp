@@ -10,12 +10,51 @@ QEMU is a free and open-source emulator and virtualizer that can perform hardwar
 
 ## Installation
 
+### From Bottle (Recommended - Pre-built Binary)
+
 ```bash
 # Tap the repository
 brew tap startergo/qemu-virgl-kosmickrisp
 
-# Install qemu
+# Install qemu (downloads pre-built bottle)
 brew install startergo/qemu-virgl-kosmickrisp/qemu
+```
+
+### From Source
+
+Build from source if you need to modify the formula, apply custom patches, or the bottle is unavailable for your macOS version:
+
+```bash
+# Tap the repository
+brew tap startergo/qemu-virgl-kosmickrisp
+
+# Install and build from source
+brew install --build-from-source startergo/qemu-virgl-kosmickrisp/qemu
+
+# Or use the shorthand
+brew install -s startergo/qemu-virgl-kosmickrisp/qemu
+```
+
+**Build from source notes:**
+- Build time: ~30-60 minutes on Apple Silicon M1/M2/M3 (depending on CPU cores)
+- Disk space required: ~4GB for build artifacts
+- Requires Xcode Command Line Tools: `xcode-select --install`
+- The formula will download and build:
+  - QEMU from upstream GitLab master
+  - Vulkan SDK with KosmicKrisp component
+  - Apply all patches automatically
+
+**Troubleshooting build failures:**
+
+If the build fails, you can inspect the build logs:
+
+```bash
+# Show build logs
+brew config
+brew install --verbose --build-from-source startergo/qemu-virgl-kosmickrisp/qemu
+
+# Or access logs after failed build
+cat ~/Library/Logs/Homebrew/qemu/*.log
 ```
 
 ## Dependencies
