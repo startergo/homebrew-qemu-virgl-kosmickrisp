@@ -58,36 +58,25 @@ class Qemu < Formula
     ohai "Applying OpenGL 4.1 support patch..."
     system "patch", "-p1", "--batch", "--verbose", "-i", patch_file
 
-    # Download and extract LunarG Vulkan SDK for Venus (KosmicKrisp) support
+    # Download and extract Vulkan SDK for Venus (KosmicKrisp) support
     vulkan_sdk_version = "1.4.335.1"
     vulkan_sdk_url = "https://sdk.lunarg.com/sdk/download/#{vulkan_sdk_version}/mac/vulkansdk-macos-#{vulkan_sdk_version}.zip"
-    ohai "Downloading LunarG Vulkan SDK #{vulkan_sdk_version}..."
+    ohai "Downloading Vulkan SDK..."
     system "curl", "-L", vulkan_sdk_url, "-o", "vulkan-sdk.zip"
     system "unzip", "-q", "vulkan-sdk.zip"
 
-    # Extract installer.dat using 7z (Qt installer format)
+    # installer.dat contains concatenated 7z archives - skip first to get actual SDK
     vulkan_app = "vulkansdk-macOS-#{vulkan_sdk_version}.app"
-    vulkan_install_dir = "#{buildpath}/vulkansdk-install"
-    ohai "Extracting Vulkan SDK from installer archive..."
-    mkdir_p vulkan_install_dir
-    system "7zz", "x", "-y", "-o#{vulkan_install_dir}",
-           "#{vulkan_app}/Contents/Resources/installer.dat"
+    system "dd", "if=#{vulkan_app}/Contents/Resources/installer.dat",
+           "of=vulkan-sdk.7z", "bs=1", "skip=452913"
+    system "7zz", "x", "-y", "-ovulkan-sdk", "vulkan-sdk.7z"
 
-    # The archive extracts to a macOS subdirectory
-    vulkan_source = "#{vulkan_install_dir}/macOS"
-    vulkan_icd = "#{vulkan_source}/share/vulkan/icd.d/libkosmickrisp_icd.json"
-    vulkan_driver = "#{vulkan_source}/lib/libvulkan_kosmickrisp.dylib"
-    vulkan_loader = "#{vulkan_source}/lib/libvulkan.1.4.335.dylib"
-
-    unless File.exist?(vulkan_icd) && File.exist?(vulkan_driver) && File.exist?(vulkan_loader)
-      odie "Vulkan SDK installation failed. Files not found in #{vulkan_source}"
-    end
-
+    # Copy Vulkan runtime files
     mkdir_p "#{share}/vulkan/icd.d"
     mkdir_p "#{lib}"
-    cp vulkan_icd, "#{share}/vulkan/icd.d/"
-    cp vulkan_driver, "#{lib}/"
-    cp vulkan_loader, "#{lib}/"
+    cp "vulkan-sdk/macOS/share/vulkan/icd.d/libkosmickrisp_icd.json", "#{share}/vulkan/icd.d/"
+    cp "vulkan-sdk/macOS/lib/libvulkan_kosmickrisp.dylib", "#{lib}/"
+    cp "vulkan-sdk/macOS/lib/libvulkan.1.4.335.dylib", "#{lib}/"
     ln_sf "libvulkan.1.4.335.dylib", "#{lib}/libvulkan.1.dylib"
     ln_sf "libvulkan.1.dylib", "#{lib}/libvulkan.dylib"
 
