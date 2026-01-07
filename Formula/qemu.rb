@@ -24,6 +24,7 @@ class Qemu < Formula
   depends_on "pixman"
   depends_on "libtool" => :build
   depends_on "pkg-config" => :build
+  depends_on "unar" => :build
   depends_on "ninja" => :build
   depends_on "meson" => :build
   depends_on "python@3" => :build
@@ -64,18 +65,15 @@ class Qemu < Formula
     system "curl", "-L", vulkan_sdk_url, "-o", "vulkan-sdk.zip"
     system "unzip", "-q", "vulkan-sdk.zip"
 
-    # Run CLI installer to extract SDK to temporary directory
+    # Extract installer.dat directly (Qt installer framework fails in headless CI)
     vulkan_app = "vulkansdk-macOS-#{vulkan_sdk_version}.app"
     vulkan_install_dir = "#{buildpath}/vulkansdk-install"
-    ohai "Extracting Vulkan SDK..."
-    system "#{vulkan_app}/Contents/MacOS/vulkansdk-macOS-#{vulkan_sdk_version}",
-           "--root", vulkan_install_dir,
-           "--accept-licenses",
-           "--default-answer",
-           "--confirm-command",
-           "install"
+    ohai "Extracting Vulkan SDK from installer archive..."
+    mkdir_p vulkan_install_dir
+    system "unar", "-q", "-o", vulkan_install_dir,
+           "#{vulkan_app}/Contents/Resources/installer.dat"
 
-    # The installer creates a macOS subdirectory
+    # The archive extracts to a macOS subdirectory
     vulkan_source = "#{vulkan_install_dir}/macOS"
     vulkan_icd = "#{vulkan_source}/share/vulkan/icd.d/libkosmickrisp_icd.json"
     vulkan_driver = "#{vulkan_source}/lib/libvulkan_kosmickrisp.dylib"
