@@ -66,11 +66,14 @@ class Qemu < Formula
     system "unzip", "-q", "vulkan-sdk.zip"
 
     # Run installer with KosmicKrisp component (downloads from cloud)
-    # Qt installer needs a writable cache directory with specific UUID
-    qt_cache_base = "#{ENV["HOME"]}/Library/Caches/qt-installer-framework"
-    qt_cache_uuid = "7131a7fe-e6ca-3647-b670-745b2413b041"
-    qt_cache_dir = "#{qt_cache_base}/#{qt_cache_uuid}"
+    # Qt installer needs cache directory - try multiple environment variables
+    qt_cache_dir = "#{buildpath}/qt-cache"
     mkdir_p qt_cache_dir
+
+    # Set various Qt environment variables to redirect cache
+    ENV["QT_QPA_PLATFORM"] = "offscreen"
+    ENV["XDG_CACHE_HOME"] = qt_cache_dir
+    ENV["CACHE_HOME"] = qt_cache_dir
 
     vulkan_app = "vulkansdk-macOS-#{vulkan_sdk_version}.app"
     vulkan_install_path = "#{buildpath}/vulkan-sdk"
