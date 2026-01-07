@@ -24,7 +24,7 @@ class Qemu < Formula
   depends_on "pixman"
   depends_on "libtool" => :build
   depends_on "pkg-config" => :build
-  depends_on "p7zip" => :build
+  depends_on "7-zip" => :build
   depends_on "ninja" => :build
   depends_on "meson" => :build
   depends_on "python@3" => :build
@@ -70,7 +70,7 @@ class Qemu < Formula
     vulkan_install_dir = "#{buildpath}/vulkansdk-install"
     ohai "Extracting Vulkan SDK from installer archive..."
     mkdir_p vulkan_install_dir
-    system "7z", "x", "-y", "-o#{vulkan_install_dir}",
+    system "7zz", "x", "-y", "-o#{vulkan_install_dir}",
            "#{vulkan_app}/Contents/Resources/installer.dat"
 
     # The archive extracts to a macOS subdirectory
