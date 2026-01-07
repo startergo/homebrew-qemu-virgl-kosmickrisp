@@ -24,7 +24,6 @@ class Qemu < Formula
   depends_on "pixman"
   depends_on "libtool" => :build
   depends_on "pkg-config" => :build
-  depends_on "7-zip" => :build
   depends_on "ninja" => :build
   depends_on "meson" => :build
   depends_on "python@3" => :build
@@ -58,25 +57,31 @@ class Qemu < Formula
     ohai "Applying OpenGL 4.1 support patch..."
     system "patch", "-p1", "--batch", "--verbose", "-i", patch_file
 
-    # Download and extract Vulkan SDK for Venus (KosmicKrisp) support
+    # Download and install Vulkan SDK with KosmicKrisp for Venus support
+    # KosmicKrisp is an optional component that must be explicitly selected
     vulkan_sdk_version = "1.4.335.1"
     vulkan_sdk_url = "https://sdk.lunarg.com/sdk/download/#{vulkan_sdk_version}/mac/vulkansdk-macos-#{vulkan_sdk_version}.zip"
     ohai "Downloading Vulkan SDK..."
     system "curl", "-L", vulkan_sdk_url, "-o", "vulkan-sdk.zip"
     system "unzip", "-q", "vulkan-sdk.zip"
 
-    # installer.dat contains concatenated 7z archives - skip both to get actual SDK
+    # Run installer with KosmicKrisp component (downloads from cloud)
     vulkan_app = "vulkansdk-macOS-#{vulkan_sdk_version}.app"
-    system "dd", "if=#{vulkan_app}/Contents/Resources/installer.dat",
-           "of=vulkan-sdk.7z", "bs=1", "skip=2022513"
-    system "7zz", "x", "-y", "-ovulkan-sdk", "vulkan-sdk.7z"
+    vulkan_install_path = "#{buildpath}/vulkan-sdk"
+    ohai "Installing Vulkan SDK with KosmicKrisp (this may take a while)..."
+    system "#{vulkan_app}/Contents/MacOS/vulkansdk-macOS-#{vulkan_sdk_version}",
+           "--root", vulkan_install_path,
+           "--accept-licenses",
+           "--default-answer",
+           "--confirm-command",
+           "install", "com.lunarg.vulkan.core", "com.lunarg.vulkan.kosmic"
 
-    # Copy Vulkan runtime files
+    # Copy Vulkan runtime files (loader, KosmicKrisp driver, ICD)
     mkdir_p "#{share}/vulkan/icd.d"
     mkdir_p "#{lib}"
-    cp "vulkan-sdk/macOS/share/vulkan/icd.d/libkosmickrisp_icd.json", "#{share}/vulkan/icd.d/"
-    cp "vulkan-sdk/macOS/lib/libvulkan_kosmickrisp.dylib", "#{lib}/"
-    cp "vulkan-sdk/macOS/lib/libvulkan.1.4.335.dylib", "#{lib}/"
+    cp "#{vulkan_install_path}/macOS/share/vulkan/icd.d/libkosmickrisp_icd.json", "#{share}/vulkan/icd.d/"
+    cp "#{vulkan_install_path}/macOS/lib/libvulkan_kosmickrisp.dylib", "#{lib}/"
+    cp "#{vulkan_install_path}/macOS/lib/libvulkan.1.4.335.dylib", "#{lib}/"
     ln_sf "libvulkan.1.4.335.dylib", "#{lib}/libvulkan.1.dylib"
     ln_sf "libvulkan.1.dylib", "#{lib}/libvulkan.dylib"
 
