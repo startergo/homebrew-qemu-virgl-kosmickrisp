@@ -36,21 +36,18 @@ The `-display cocoa` backend supports OpenGL rendering modes via the `gl=` optio
 - `gl=core` - Use OpenGL Core profile (recommended for modern OpenGL)
 - `gl=es` - Use OpenGL ES via ANGLE (for ES 2.0/3.0 support)
 
-### Basic VM with virtio-gpu-gl
+### Basic VM with virtio-gpu
 
 ```bash
 qemu-system-x86_64 \
   -display cocoa,gl=core \
-  -virtio-gpu-gl,present=on \
-  -device virtio-gpu-pci,gl=true \
+  -device virtio-gpu-pci \
   ...
 ```
 
-### With Venus (Vulkan) support
+### With Vulkan (Venus) support
 
-Venus is a modern virtio-gpu Vulkan transport available in QEMU v9.2.0 and later.
-
-The Vulkan runtime (loader, driver, ICD) is installed with QEMU at:
+Venus is a modern virtio-gpu Vulkan transport available in QEMU v9.2.0 and later. The Vulkan runtime (loader, driver, ICD) is installed with QEMU at:
 ```
 $(brew --prefix qemu)/lib/libvulkan.dylib
 $(brew --prefix qemu)/lib/libvulkan_kosmickrisp.dylib
@@ -63,8 +60,7 @@ export DYLD_LIBRARY_PATH=$(brew --prefix qemu)/lib:$DYLD_LIBRARY_PATH
 
 qemu-system-x86_64 \
   -display cocoa,gl=core \
-  -virtio-gpu-gl,present=on \
-  -device virtio-gpu-pci,gl=true,venus=on \
+  -device virtio-gpu-pci \
   ...
 ```
 
