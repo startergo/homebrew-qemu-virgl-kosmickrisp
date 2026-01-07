@@ -96,6 +96,16 @@ This build is configured for macOS with GPU acceleration support:
 - **Target architectures**: x86_64, aarch64, arm, and more
 - Builds against upstream QEMU master
 
+## Patches
+
+This tap applies the following patches to upstream QEMU:
+- **[qemu-virgl3d-macos.patch](patches/qemu-virgl3d-macos.patch)**: @akihikodaki's VirGL 3D macOS support with ANGLE Metal backend ([upstream PR](https://patchew.org/search?q=project%3AQEMU+from%3Aakihiko.odaki%40gmail.com))
+- **[qemu-audio-coreaudio.patch](patches/qemu-audio-coreaudio.patch)**: Audio/coreaudio improvements for macOS
+
+These patches enable:
+- `-display cocoa,gl=core` - OpenGL Core profile via OpenGL.framework
+- `-display cocoa,gl=es` - OpenGL ES via ANGLE with Metal backend
+
 ## License
 
 GPL-2.0-or-later
