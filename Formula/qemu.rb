@@ -148,6 +148,16 @@ class Qemu < Formula
     end
   end
 
+  def post_install
+    # Restore rpath to HOMEBREW_PREFIX/lib if lost during bottling
+    # ANGLE uses @rpath/libEGL.dylib, so qemu binaries need this rpath
+    Dir["#{bin}/*"].each do |binary|
+      unless Utils.popen_read("install_name_tool", "-l", binary).include?("#{HOMEBREW_PREFIX}/lib")
+        system "install_name_tool", "-add_rpath", "#{HOMEBREW_PREFIX}/lib", binary
+      end
+    end
+  end
+
   test do
     # Test that qemu-system-x86_64 runs and shows version
     system bin/"qemu-system-x86_64", "--version"
