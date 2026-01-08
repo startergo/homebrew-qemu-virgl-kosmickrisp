@@ -64,6 +64,11 @@ class Qemu < Formula
     ohai "Applying VirGL 3D macOS patch with ANGLE Metal backend..."
     system "patch", "-p1", "--batch", "--verbose", "-i", patch_virgl
 
+    # Apply NSOpenGLContext fix for Desktop GL (gl=core)
+    patch_nsopengl = "#{__dir__}/../patches/qemu-virgl3d-macos-nsopengl.patch"
+    ohai "Applying NSOpenGLContext fix for Desktop GL..."
+    system "patch", "-p1", "--batch", "--verbose", "-i", patch_nsopengl
+
     # Download and install Vulkan SDK with KosmicKrisp for Venus support
     # KosmicKrisp is an optional component that must be explicitly selected
     vulkan_sdk_version = "1.4.335.1"

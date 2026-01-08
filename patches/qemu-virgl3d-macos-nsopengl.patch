@@ -1,0 +1,64 @@
+From: Hybrid Patch for Desktop GL Fix
+Subject: Add NSOpenGLContext support for working Desktop GL (gl=core)
+
+This patch modifies qemu-virgl3d-macos.patch to use NSOpenGLContext
+for Desktop GL initialization instead of CGL, which fixes the black
+screen issue. The OpenGL ES (gl=es) path with ANGLE Metal remains
+unchanged.
+
+diff --git a/ui/cocoa.m b/ui/cocoa.m
+--- a/ui/cocoa.m
++++ b/ui/cocoa.m
+@@ -252,6 +252,7 @@ static bool gl_dirty;
+ static uint32_t gl_scanout_id;
+ static bool gl_scanout_y0_top;
+ static QEMUGLContext gl_view_ctx;
++static NSOpenGLContext *gl_view_nsctx;
+
+ #ifdef CONFIG_EGL
+ static EGLSurface egl_surface;
+@@ -826,6 +827,31 @@ static const DisplayGLCtxOps dgc_ops = {
+ }
+ @end
+
++static NSOpenGLContext *cocoa_gl_create_nscontext(int bpp)
++{
++    NSOpenGLPixelFormatAttribute attrs[] = {
++        NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersion3_2Core,
++        NSOpenGLPFAColorSize, (NSOpenGLPixelFormatAttribute)bpp,
++        NSOpenGLPFADoubleBuffer,
++        0
++    };
++
++    NSOpenGLPixelFormat *pf = [[NSOpenGLPixelFormat alloc] initWithAttributes:attrs];
++    if (!pf) {
++        return nil;
++    }
++
++    NSOpenGLContext *ctx = [[NSOpenGLContext alloc] initWithFormat:pf
++                                                       shareContext:nil];
++    [pf release];
++    return ctx;
++}
++
+ #endif
+
+ @implementation QemuCocoaView
+@@ -1047,11 +1073,15 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+             exit(1);
+ #endif
+         } else {
+-            CGLPixelFormatObj format = cocoa_gl_create_cgl_pixel_format(32);
+-            CGLContextObj ctx;
+-            CGLCreateContext(format, NULL, &ctx);
+-            CGLDestroyPixelFormat(format);
+-            gl_view_ctx = (QEMUGLContext)ctx;
++            gl_view_nsctx = cocoa_gl_create_nscontext(32);
++            if (!gl_view_nsctx) {
++                exit(1);
++            }
++            [gl_view_nsctx makeCurrentContext];
++            gl_view_ctx = (QEMUGLContext)[gl_view_nsctx CGLContextObj];
+ #ifdef CONFIG_EGL
+             egl_surface = EGL_NO_SURFACE;
+ #endif
