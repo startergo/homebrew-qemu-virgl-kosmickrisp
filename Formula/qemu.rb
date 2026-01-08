@@ -3,10 +3,9 @@ class Qemu < Formula
   homepage "https://www.qemu.org/"
   license "GPL-2.0-or-later"
 
-  version "1.0.4"
   version "1.0.5"
-  url "https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/archive/5c0594c0fec749bb107774f5588d23ce3e2d4e53.tar.gz"
-  sha256 "fe278e443b55fa6b889d6b04846b19f7085a5844d6a3734096736b73fa56f49d"
+  url "https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/archive/refs/tags/v1.0.5.tar.gz"
+  sha256 "53b5fb2f1e26991d77cf31c3392bcbdec3b4c4a4e5ca5783ac1cfd9f3a5cb2d8"
   head "https://gitlab.com/qemu-project/qemu.git", branch: "master"
 
   bottle do
