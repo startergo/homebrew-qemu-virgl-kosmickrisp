@@ -151,9 +151,11 @@ class Qemu < Formula
   def post_install
     # Restore rpath to HOMEBREW_PREFIX/lib if lost during bottling
     # ANGLE uses @rpath/libEGL.dylib, so qemu binaries need this rpath
+    rpath = "#{HOMEBREW_PREFIX}/lib"
     Dir["#{bin}/*"].each do |binary|
-      unless Utils.popen_read("install_name_tool", "-l", binary).include?("#{HOMEBREW_PREFIX}/lib")
-        system "install_name_tool", "-add_rpath", "#{HOMEBREW_PREFIX}/lib", binary
+      # install_name_tool -l outputs "path /opt/homebrew/lib" format
+      unless Utils.popen_read("install_name_tool", "-l", binary).include?("path #{rpath}")
+        system "install_name_tool", "-add_rpath", rpath, binary
       end
     end
   end
