@@ -9,18 +9,19 @@ unchanged.
 diff --git a/ui/cocoa.m b/ui/cocoa.m
 --- a/ui/cocoa.m
 +++ b/ui/cocoa.m
-@@ -252,6 +252,7 @@ static bool gl_dirty;
+@@ -108,6 +108,7 @@
  static uint32_t gl_scanout_id;
  static bool gl_scanout_y0_top;
  static QEMUGLContext gl_view_ctx;
 +static NSOpenGLContext *gl_view_nsctx;
-
+ 
  #ifdef CONFIG_EGL
  static EGLSurface egl_surface;
-@@ -826,6 +827,31 @@ static const DisplayGLCtxOps dgc_ops = {
+@@ -187,6 +188,26 @@
+                 displayTime:ts];
  }
  @end
-
++
 +static NSOpenGLContext *cocoa_gl_create_nscontext(int bpp)
 +{
 +    NSOpenGLPixelFormatAttribute attrs[] = {
@@ -40,11 +41,10 @@ diff --git a/ui/cocoa.m b/ui/cocoa.m
 +    [pf release];
 +    return ctx;
 +}
-+
+ 
  #endif
-
- @implementation QemuCocoaView
-@@ -1043,11 +1069,15 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+ 
+@@ -2447,11 +2468,12 @@
              exit(1);
  #endif
          } else {
