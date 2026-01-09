@@ -21,7 +21,7 @@ diff --git a/hw/display/virtio-gpu-virgl.c b/hw/display/virtio-gpu-virgl.c
 
  #include <virglrenderer.h>
 
-@@ -40,10 +41,42 @@
+@@ -38,10 +39,42 @@
      }
 
      return container_of(res, struct virtio_gpu_virgl_resource, base);
@@ -64,6 +64,25 @@ diff --git a/hw/display/virtio-gpu-virgl.c b/hw/display/virtio-gpu-virgl.c
  virgl_get_egl_display(G_GNUC_UNUSED void *cookie)
  {
      return qemu_egl_display;
+@@ -418,18 +451,17 @@
+     if (ss.resource_id && ss.r.width && ss.r.height) {
+         struct virgl_renderer_resource_info info;
+-        void *d3d_tex2d = NULL;
++        void *d3d_tex2d = (void *)virgl_borrow_texture_for_scanout;
+
+ #if VIRGL_VERSION_MAJOR >= 1
+         struct virgl_renderer_resource_info_ext ext;
+         memset(&ext, 0, sizeof(ext));
+         ret = virgl_renderer_resource_get_info_ext(ss.resource_id, &ext);
+         info = ext.base;
+-        d3d_tex2d = ext.d3d_tex2d;
+ #else
+         memset(&info, 0, sizeof(info));
+         ret = virgl_renderer_resource_get_info(ss.resource_id, &info);
+ #endif
+         if (ret) {
+             qemu_log_mask(LOG_GUEST_ERROR,
+                           "%s: illegal resource specified %d\n",
 diff --git a/include/ui/console.h b/include/ui/console.h
 --- a/include/ui/console.h
 +++ b/include/ui/console.h
