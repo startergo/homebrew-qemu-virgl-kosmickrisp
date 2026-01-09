@@ -14,14 +14,21 @@ diff --git a/ui/cocoa.m b/ui/cocoa.m
  static bool gl_scanout_y0_top;
  static QEMUGLContext gl_view_ctx;
 +static NSOpenGLContext *gl_view_nsctx;
- 
+
  #ifdef CONFIG_EGL
  static EGLSurface egl_surface;
-@@ -187,6 +188,26 @@
-                 displayTime:ts];
+@@ -178,6 +179,7 @@
+             forLayerTime:(CFTimeInterval)t
+              displayTime:(const CVTimeStamp *)ts
+ {
++    CGLSetCurrentContext(ctx);
+     BQL_LOCK_GUARD();
+     cocoa_gl_render();
+
+@@ -188,6 +190,26 @@
  }
  @end
-+
+
 +static NSOpenGLContext *cocoa_gl_create_nscontext(int bpp)
 +{
 +    NSOpenGLPixelFormatAttribute attrs[] = {
@@ -41,10 +48,11 @@ diff --git a/ui/cocoa.m b/ui/cocoa.m
 +    [pf release];
 +    return ctx;
 +}
- 
++
  #endif
- 
-@@ -2447,11 +2468,12 @@
+
+ // Utility functions to run specified code block with the BQL held
+@@ -2447,11 +2469,12 @@
              exit(1);
  #endif
          } else {
