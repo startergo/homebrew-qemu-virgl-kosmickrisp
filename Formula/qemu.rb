@@ -69,6 +69,13 @@ class Qemu < Formula
     ohai "Applying NSOpenGLContext fix for Desktop GL..."
     system "patch", "-p1", "--batch", "--verbose", "-i", patch_nsopengl
 
+    # Apply texture borrowing mechanism for Desktop GL display initialization
+    patch_texture_borrowing = "#{__dir__}/../patches/qemu-texture-borrowing.patch"
+    if File.exist?(patch_texture_borrowing)
+      ohai "Applying texture borrowing mechanism for Desktop GL..."
+      system "patch", "-p1", "--batch", "--verbose", "-i", patch_texture_borrowing
+    end
+
     # Download and install Vulkan SDK with KosmicKrisp for Venus support
     # KosmicKrisp is an optional component that must be explicitly selected
     vulkan_sdk_version = "1.4.335.1"

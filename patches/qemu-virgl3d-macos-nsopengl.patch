@@ -44,10 +44,10 @@ diff --git a/ui/cocoa.m b/ui/cocoa.m
 +        return nil;
 +    }
 +
-+    NSOpenGLContext *ctx = [[NSOpenGLContext alloc] initWithFormat:pf
-+                                                       shareContext:nil];
++    NSOpenGLContext *nsctx = [[NSOpenGLContext alloc] initWithFormat:pf
++                                                        shareContext:nil];
 +    [pf release];
-+    return ctx;
++    return nsctx;
 +}
 +
  #endif
