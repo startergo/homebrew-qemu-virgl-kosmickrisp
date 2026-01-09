@@ -17,11 +17,12 @@ diff --git a/ui/cocoa.m b/ui/cocoa.m
 
  #ifdef CONFIG_EGL
  static EGLSurface egl_surface;
-@@ -178,6 +179,7 @@
+@@ -178,6 +179,8 @@
              forLayerTime:(CFTimeInterval)t
               displayTime:(const CVTimeStamp *)ts
  {
 +    CGLSetCurrentContext(ctx);
++    glFlush();
      BQL_LOCK_GUARD();
      cocoa_gl_render();
 
