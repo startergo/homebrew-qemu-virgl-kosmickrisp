@@ -65,16 +65,18 @@ class Qemu < Formula
     system "patch", "-p1", "--batch", "--verbose", "-i", patch_virgl
 
     # Apply NSOpenGLContext fix for Desktop GL (gl=core)
-    patch_nsopengl = "#{__dir__}/../patches/qemu-virgl3d-macos-nsopengl.patch"
-    ohai "Applying NSOpenGLContext fix for Desktop GL..."
-    system "patch", "-p1", "--batch", "--verbose", "-i", patch_nsopengl
+    # NOTE: Disabled - conflicts with current upstream QEMU
+    # patch_nsopengl = "#{__dir__}/../patches/qemu-virgl3d-macos-nsopengl.patch"
+    # ohai "Applying NSOpenGLContext fix for Desktop GL..."
+    # system "patch", "-p1", "--batch", "--verbose", "-i", patch_nsopengl
 
     # Apply texture borrowing mechanism for Desktop GL display initialization
-    patch_texture_borrowing = "#{__dir__}/../patches/qemu-texture-borrowing.patch"
-    if File.exist?(patch_texture_borrowing)
-      ohai "Applying texture borrowing mechanism for Desktop GL..."
-      system "patch", "-p1", "--batch", "--verbose", "-i", patch_texture_borrowing
-    end
+    # NOTE: Disabled - uses shader-based approach which is incorrect
+    # patch_texture_borrowing = "#{__dir__}/../patches/qemu-texture-borrowing.patch"
+    # if File.exist?(patch_texture_borrowing)
+    #   ohai "Applying texture borrowing mechanism for Desktop GL..."
+    #   system "patch", "-p1", "--batch", "--verbose", "-i", patch_texture_borrowing
+    # end
 
     # Download and install Vulkan SDK with KosmicKrisp for Venus support
     # KosmicKrisp is an optional component that must be explicitly selected
