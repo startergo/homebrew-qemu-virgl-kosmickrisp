@@ -146,32 +146,8 @@ necessary for proper display initialization with Desktop GL on macOS.
      uint32_t y;
      uint32_t width;
      uint32_t height;
---- a/ui/console.c	2026-01-08 22:58:51
-+++ b/ui/console.c	2026-01-08 22:56:56
-@@ -63,20 +63,21 @@
-     uint64_t last_update;
-     uint64_t update_interval;
-     bool refreshing;
- 
-     QLIST_HEAD(, DisplayChangeListener) listeners;
- };
- 
- static DisplayState *display_state;
- static QTAILQ_HEAD(, QemuConsole) consoles =
-     QTAILQ_HEAD_INITIALIZER(consoles);
-+static DisplayGLTextureBorrower gl_scanout_borrow;
- 
- static void dpy_refresh(DisplayState *s);
- static DisplayState *get_alloc_displaystate(void);
- static bool displaychangelistener_has_dmabuf(DisplayChangeListener *dcl);
- static bool console_compatible_with(QemuConsole *con,
-                                     DisplayChangeListener *dcl, Error **errp);
- static QemuConsole *qemu_graphic_console_lookup_unused(void);
- static void dpy_set_ui_info_timer(void *opaque);
- 
- static void gui_update(void *opaque)
 --- a/ui/cocoa.m	2026-01-08 22:58:51
-+++ b/ui/cocoa.m	2026-01-08 22:58:05
++++ b/ui/cocoa.m	2026-01-09 00:24:00
 @@ -99,21 +99,21 @@
  static QemuEvent cbevent;
  static QemuCocoaPasteboardTypeOwner *cbowner;
@@ -184,7 +160,7 @@ necessary for proper display initialization with Desktop GL on macOS.
  static bool gl_dirty;
  static uint32_t gl_scanout_id;
 -static bool gl_scanout_y0_top;
-+static DisplayGLTextureBorrower gl_scanout_borrow;
++static DisplayGLTextureBorrower gl_scanout_borrow = NULL;
  static QEMUGLContext gl_view_ctx;
  static NSOpenGLContext *gl_view_nsctx;
  
@@ -225,7 +201,7 @@ necessary for proper display initialization with Desktop GL on macOS.
  static void cocoa_gl_refresh(DisplayChangeListener *dcl)
  {
      cocoa_refresh(dcl);
-@@ -2361,34 +2368,37 @@
+@@ -2361,34 +2368,36 @@
  
          dispatch_async(dispatch_get_main_queue(), ^{
              [[cocoaView layer] setNeedsDisplay];
@@ -252,7 +228,6 @@ necessary for proper display initialization with Desktop GL on macOS.
      gl_scanout_id = backing_id;
 -    gl_scanout_y0_top = backing_y_0_top;
 +    /* Store the texture borrowing callback */
-+    extern DisplayGLTextureBorrower gl_scanout_borrow;
 +    gl_scanout_borrow = (DisplayGLTextureBorrower)(uintptr_t)d3d_tex2d;
      gl_dirty = true;
  }
