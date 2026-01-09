@@ -6,14 +6,15 @@ Changes:
    - NSOpenGLContext cannot share objects with virglrenderer's EGL context
    - Always use CAMetalLayer for OpenGL rendering on macOS
    - Initialize EGL with core profile for Desktop GL mode
+   - Fixes "no display" issue with gl=core mode
 
-2. Fix inverted display during boot by forcing correct shader for ANGLE
+2. Fix inverted display during boot by inverting y_0_top flag for ANGLE
    - ANGLE Metal backend always renders textures with Y=0 at top
-   - Ignore guest's y_0_top flag and always use flip shader
-   - Fixes boot display showing upside down while preserving login screen
+   - Invert the guest's y_0_top flag to select correct shader
+   - This should fix boot display being inverted while preserving login screen
 
 --- a/ui/cocoa.m	2026-01-08 22:58:51
-+++ b/ui/cocoa.m	2026-01-09 08:36:16
++++ b/ui/cocoa.m	2026-01-09 09:22:27
 @@ -476,22 +476,23 @@
          screen.width = frameRect.size.width;
          screen.height = frameRect.size.height;
@@ -40,7 +41,7 @@ Changes:
          [cursorLayer setZPosition:1];
          [[self layer] addSublayer:cursorLayer];
  
-@@ -2374,21 +2375,23 @@
+@@ -2374,21 +2375,26 @@
  static void cocoa_gl_scanout_texture(DisplayChangeListener *dcl,
                                       uint32_t backing_id,
                                       bool backing_y_0_top,
@@ -53,8 +54,11 @@ Changes:
      gl_scanout_id = backing_id;
 -    gl_scanout_y0_top = backing_y_0_top;
 +    /* ANGLE Metal backend always uses Y=0 at top
-+     * Use flip shader regardless of guest's y_0_top flag */
-+    gl_scanout_y0_top = true;
++     * Invert the flag to select correct shader:
++     * - Guest says y_0_top=false (bottom-left): use flip shader (no transform)
++     * - Guest says y_0_top=true (top-left): use non-flip shader (flip Y)
++     */
++    gl_scanout_y0_top = !backing_y_0_top;
      gl_dirty = true;
  }
  
@@ -65,7 +69,7 @@ Changes:
      gl_dirty = true;
  }
  
-@@ -2443,51 +2446,40 @@
+@@ -2443,51 +2449,40 @@
      // Create an Application controller
  #ifdef CONFIG_OPENGL
      controller = [[QemuCocoaAppController alloc] initWithGL:opts->gl];
@@ -133,4 +137,4 @@ Changes:
              if (!con) {
                  break;
              }
- 
+
