@@ -440,7 +440,9 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +                           GL_TEXTURE_2D, gl_scanout_id, 0);
 +    glBlitFramebuffer(x1, y1, x2, y2, 0, 0, frame.width, frame.height,
 +                      GL_COLOR_BUFFER_BIT, filter);
++    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 +    glDeleteFramebuffers(1, &fb);
++    glBindTexture(GL_TEXTURE_2D, 0);
 +    gl_surface_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 +    gl_needs_display = false;
 +}
