@@ -1,4 +1,4 @@
-From bcabd1af301ecb108db88b5b2eb8e9106270302e Mon Sep 17 00:00:00 2001
+From a03612c3e0d4bd707f429357be34039cf753c3d4 Mon Sep 17 00:00:00 2001
 From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
 Date: Wed, 24 Dec 2025 10:57:01 +0900
 Subject: [PATCH] Support Virgil 3D renderer on macOS
@@ -10,26 +10,54 @@ the context using EGL in a way compatible with ANGLE for the ES profile.
 
 Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
 ---
- include/ui/egl-helpers.h         |   4 +-
- include/ui/gtk.h                 |   4 +-
- include/ui/sdl2.h                |   4 +-
- include/ui/spice-display.h       |   2 +-
- meson.build                      |  12 +-
- qapi/ui.json                     |   5 +-
- qemu-options.hx                  |   2 +-
- ui/cocoa.m                       | 660 ++++++++++++++++++++++++-------
- ui/console.c                     |   7 +-
- ui/egl-helpers.c                 | 154 +++++---
- ui/gtk-egl.c                     |   2 +-
- ui/gtk.c                         |  24 +-
- ui/meson.build                   |  14 +-
- ui/sdl2.c                        |  12 +-
- ui/shader.c                      |  14 +-
- ui/shader/texture-blit-flip.vert |   2 -
- ui/shader/texture-blit.frag      |   2 -
- ui/shader/texture-blit.vert      |   2 -
- 18 files changed, 665 insertions(+), 261 deletions(-)
+ include/ui/console.h       |   9 +-
+ include/ui/egl-helpers.h   |   4 +-
+ include/ui/gtk.h           |   4 +-
+ include/ui/sdl2.h          |   4 +-
+ include/ui/spice-display.h |   2 +-
+ meson.build                |  12 +-
+ qapi/ui.json               |   5 +-
+ qemu-options.hx            |   2 +-
+ ui/cocoa.m                 | 742 ++++++++++++++++++++++++++++++-------
+ ui/console-gl.c            |  12 +-
+ ui/console.c               |   7 +-
+ ui/dbus.c                  |  12 +-
+ ui/egl-helpers.c           | 156 ++++----
+ ui/gtk-egl.c               |  18 +-
+ ui/gtk-gl-area.c           |  14 +-
+ ui/gtk.c                   |  24 +-
+ ui/meson.build             |  15 +-
+ ui/sdl2-gl.c               |  10 +-
+ ui/sdl2.c                  |  12 +-
+ ui/spice-display.c         |  14 +-
+ 20 files changed, 773 insertions(+), 305 deletions(-)
 
+diff --git a/include/ui/console.h b/include/ui/console.h
+index 98feaa58bdd1a..2731895a1a696 100644
+--- a/include/ui/console.h
++++ b/include/ui/console.h
+@@ -420,18 +420,15 @@ int qemu_invalidate_text_consoles(void);
+ #ifdef CONFIG_OPENGL
+ bool console_gl_check_format(DisplayChangeListener *dcl,
+                              pixman_format_code_t format);
+-void surface_gl_create_texture(QemuGLShader *gls,
+-                               DisplaySurface *surface);
++void surface_gl_create_texture(DisplaySurface *surface);
+ bool surface_gl_create_texture_from_fd(DisplaySurface *surface,
+                                        int fd, GLuint *texture,
+                                        GLuint *mem_obj);
+-void surface_gl_update_texture(QemuGLShader *gls,
+-                               DisplaySurface *surface,
++void surface_gl_update_texture(DisplaySurface *surface,
+                                int x, int y, int w, int h);
+ void surface_gl_render_texture(QemuGLShader *gls,
+                                DisplaySurface *surface);
+-void surface_gl_destroy_texture(QemuGLShader *gls,
+-                               DisplaySurface *surface);
++void surface_gl_destroy_texture(DisplaySurface *surface);
+ void surface_gl_setup_viewport(QemuGLShader *gls,
+                                DisplaySurface *surface,
+                                int ww, int wh);
 diff --git a/include/ui/egl-helpers.h b/include/ui/egl-helpers.h
 index acf993fcf52f3..d6061725498a9 100644
 --- a/include/ui/egl-helpers.h
@@ -179,7 +207,7 @@ index fca2b7bc74f96..63983de7d26e8 100644
  #endif
  #if defined(CONFIG_DBUS_DISPLAY)
 diff --git a/ui/cocoa.m b/ui/cocoa.m
-index 6ca91a1193e0e..72ac3d4e52dbd 100644
+index 6ca91a1193e0e..1a6751adf078c 100644
 --- a/ui/cocoa.m
 +++ b/ui/cocoa.m
 @@ -22,9 +22,12 @@
@@ -206,7 +234,16 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
  #ifndef MAC_OS_VERSION_14_0
  #define MAC_OS_VERSION_14_0 140000
  #endif
-@@ -75,33 +82,14 @@
+@@ -68,6 +75,8 @@
+ #define UC_CTRL_KEY "\xe2\x8c\x83"
+ #define UC_ALT_KEY "\xe2\x8c\xa5"
+ 
++#define EGL_METAL_TEXTURE_ANGLE 0x34A7
++
+ typedef struct {
+     int width;
+     int height;
+@@ -75,33 +84,14 @@
  
  @class QemuCocoaPasteboardTypeOwner;
  
@@ -243,7 +280,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
  static NSTextField *pauseLabel;
  
  static bool allow_events;
-@@ -111,6 +99,97 @@ static void cocoa_switch(DisplayChangeListener *dcl,
+@@ -111,6 +101,46 @@ static void cocoa_switch(DisplayChangeListener *dcl,
  static QemuEvent cbevent;
  static QemuCocoaPasteboardTypeOwner *cbowner;
  
@@ -252,19 +289,17 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +@interface QemuCGLLayer : CAOpenGLLayer
 +@end
 +
-+static bool gl_dirty;
-+static uint32_t gl_scanout_id;
-+static bool gl_scanout_y0_top;
-+static QEMUGLContext gl_view_ctx;
++static GLint gl_scanout_x;
++static GLint gl_scanout_y;
++static GLsync gl_surface_sync;
++static GLuint gl_scanout_id;
++static QEMUGLContext gl_scanout_ctx;
++static bool gl_needs_display;
++static bool gl_scanout_y_flip;
 +
 +#ifdef CONFIG_EGL
-+static EGLSurface egl_surface;
++static QEMUGLContext gl_view_ctx;
 +#endif
-+
-+static void cocoa_gl_switch(DisplayChangeListener *dcl,
-+                            DisplaySurface *new_surface);
-+
-+static void cocoa_gl_render(void);
 +
 +static bool cocoa_gl_is_compatible_dcl(DisplayGLCtx *dgc,
 +                                       DisplayChangeListener *dcl);
@@ -287,61 +322,12 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +    .ops = &dgc_ops,
 +};
 +
-+@implementation QemuCGLLayer
-+- (id)init
-+{
-+    self = [super init];
-+    if (self) {
-+        [self setAsynchronous:NO];
-+    }
-+    return self;
-+}
-+
-+- (CGLContextObj)copyCGLContextForPixelFormat:(CGLPixelFormatObj)pf
-+{
-+    CGLContextObj ctx;
-+    CGLCreateContext(pf, gl_view_ctx, &ctx);
-+    return ctx;
-+}
-+
-+- (CGLPixelFormatObj)copyCGLPixelFormatForDisplayMask:(uint32_t)mask
-+{
-+    CGLPixelFormatObj pix;
-+    GLint npix;
-+    CGLPixelFormatAttribute attribs[] = {
-+        kCGLPFADisplayMask,
-+        mask,
-+        kCGLPFAOpenGLProfile,
-+        (CGLPixelFormatAttribute)kCGLOGLPVersion_3_2_Core,
-+        0
-+    };
-+
-+    CGLChoosePixelFormat(attribs, &pix, &npix);
-+
-+    return pix;
-+}
-+
-+- (void)drawInCGLContext:(CGLContextObj)ctx
-+             pixelFormat:(CGLPixelFormatObj)pf
-+            forLayerTime:(CFTimeInterval)t
-+             displayTime:(const CVTimeStamp *)ts
-+{
-+    BQL_LOCK_GUARD();
-+    cocoa_gl_render();
-+
-+    [super drawInCGLContext:ctx
-+                pixelFormat:pf
-+               forLayerTime:t
-+                displayTime:ts];
-+}
-+@end
-+
 +#endif
 +
  // Utility functions to run specified code block with the BQL held
  typedef void (^CodeBlock)(void);
  typedef bool (^BoolCodeBlock)(void);
-@@ -178,7 +257,6 @@ static void handleAnyDeviceErrors(Error * err)
+@@ -178,7 +208,6 @@ static void handleAnyDeviceErrors(Error * err)
  @interface QemuCocoaView : NSView
  {
      QEMUScreen screen;
@@ -349,7 +335,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
      /* The state surrounding mouse grabbing is potentially confusing.
       * isAbsoluteEnabled tracks qemu_input_is_absolute() [ie "is the emulated
       *   pointing device an absolute-position one?"], but is only updated on
-@@ -197,7 +275,6 @@ @interface QemuCocoaView : NSView
+@@ -197,7 +226,6 @@ @interface QemuCocoaView : NSView
      int mouseY;
      bool mouseOn;
  }
@@ -357,7 +343,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
  - (void) grabMouse;
  - (void) ungrabMouse;
  - (void) setFullGrab:(id)sender;
-@@ -206,7 +283,6 @@ - (bool) handleEvent:(NSEvent *)event;
+@@ -206,7 +234,6 @@ - (bool) handleEvent:(NSEvent *)event;
  - (bool) handleEventLocked:(NSEvent *)event;
  - (void) notifyMouseModeChange;
  - (BOOL) isMouseGrabbed;
@@ -365,7 +351,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
  - (void) raiseAllKeys;
  @end
  
-@@ -227,6 +303,9 @@ static CGEventRef handleTapEvent(CGEventTapProxy proxy, CGEventType type, CGEven
+@@ -227,6 +254,9 @@ static CGEventRef handleTapEvent(CGEventTapProxy proxy, CGEventType type, CGEven
  
  @implementation QemuCocoaView
  - (id)initWithFrame:(NSRect)frameRect
@@ -375,15 +361,24 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
  {
      COCOA_DEBUG("QemuCocoaView: initWithFrame\n");
  
-@@ -253,10 +332,19 @@ - (id)initWithFrame:(NSRect)frameRect
+@@ -253,10 +283,28 @@ - (id)initWithFrame:(NSRect)frameRect
          [self setClipsToBounds:YES];
  #endif
          [self setWantsLayer:YES];
 +
 +#ifdef CONFIG_OPENGL
 +        if (gl) {
-+            bool es = gl == DISPLAY_GL_MODE_ES;
-+            CALayer *layer = es ? [CAMetalLayer new] : [QemuCGLLayer new];
++            CALayer *layer;
++
++            if (gl == DISPLAY_GL_MODE_ES) {
++                CAMetalLayer *metalLayer = [CAMetalLayer new];
++                [metalLayer setDrawableSize:frameRect.size];
++                metalLayer.autoresizingMask = kCALayerNotSizable;
++                layer = metalLayer;
++            } else {
++                layer = [QemuCGLLayer new];
++            }
++
 +            [self setLayer:layer];
 +            [layer release];
 +        }
@@ -397,7 +392,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
          [[self layer] addSublayer:cursorLayer];
  
      }
-@@ -267,10 +355,6 @@ - (void) dealloc
+@@ -267,10 +315,6 @@ - (void) dealloc
  {
      COCOA_DEBUG("QemuCocoaView: dealloc\n");
  
@@ -408,7 +403,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
      if (eventsTap) {
          CFRelease(eventsTap);
      }
-@@ -286,6 +370,13 @@ - (BOOL) isOpaque
+@@ -286,6 +330,45 @@ - (BOOL) isOpaque
      return YES;
  }
  
@@ -417,12 +412,44 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +{
 +    return display_opengl;
 +}
++
++- (void)glDraw
++{
++    BQL_LOCK_GUARD();
++    GLint filter = qatomic_read(&zoom_interpolation) ? GL_LINEAR : GL_NEAREST;
++    NSSize frame = [self convertSizeToBacking:[self frame].size];
++    GLuint fb;
++    GLuint x1 = gl_scanout_x;
++    GLuint y1;
++    GLuint x2 = gl_scanout_x + surface_width(surface);
++    GLuint y2;
++
++    if (gl_scanout_y_flip) {
++        y1 = gl_scanout_y + surface_height(surface);
++        y2 = gl_scanout_y;
++    } else {
++        y1 = gl_scanout_y;
++        y2 = gl_scanout_y + surface_height(surface);
++    }
++
++    glWaitSync(gl_surface_sync, 0, GL_TIMEOUT_IGNORED);
++    glDeleteSync(gl_surface_sync);
++    glGenFramebuffers(1, &fb);
++    glBindFramebuffer(GL_READ_FRAMEBUFFER, fb);
++    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
++                           GL_TEXTURE_2D, gl_scanout_id, 0);
++    glBlitFramebuffer(x1, y1, x2, y2, 0, 0, frame.width, frame.height,
++                      GL_COLOR_BUFFER_BIT, filter);
++    glDeleteFramebuffers(1, &fb);
++    gl_surface_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
++    gl_needs_display = false;
++}
 +#endif
 +
  - (void) viewDidMoveToWindow
  {
      [self resizeWindow];
-@@ -322,29 +413,43 @@ - (void) unhideCursor
+@@ -322,29 +405,43 @@ - (void) unhideCursor
      [NSCursor unhide];
  }
  
@@ -477,7 +504,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
  
      cursor_unref(cursor);
      cursor = given_cursor;
-@@ -355,9 +460,6 @@ - (void)setCursor:(QEMUCursor *)given_cursor
+@@ -355,9 +452,6 @@ - (void)setCursor:(QEMUCursor *)given_cursor
  
      cursor_ref(cursor);
  
@@ -487,7 +514,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
      provider = CGDataProviderCreateWithData(
          NULL,
          cursor->data,
-@@ -382,8 +484,8 @@ - (void)setCursor:(QEMUCursor *)given_cursor
+@@ -382,8 +476,8 @@ - (void)setCursor:(QEMUCursor *)given_cursor
      CGDataProviderRelease(provider);
      [CATransaction begin];
      [CATransaction setDisableActions:YES];
@@ -497,7 +524,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
      [CATransaction commit];
      CGImageRelease(image);
  }
-@@ -394,61 +496,58 @@ - (void) drawRect:(NSRect) rect
+@@ -394,61 +488,58 @@ - (void) drawRect:(NSRect) rect
  
      // get CoreGraphic context
      CGContextRef viewContextRef = [[NSGraphicsContext currentContext] CGContext];
@@ -607,7 +634,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
  }
  
  - (NSSize)fixAspectRatio:(NSSize)max
-@@ -515,9 +614,15 @@ - (void) resizeWindow
+@@ -515,9 +606,15 @@ - (void) resizeWindow
      }
  }
  
@@ -625,7 +652,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
  }
  
  #pragma clang diagnostic push
-@@ -590,28 +695,17 @@ - (void) updateUIInfo
+@@ -590,28 +687,17 @@ - (void) updateUIInfo
      });
  }
  
@@ -646,19 +673,19 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
          screen.height = h;
          [self resizeWindow];
 -        [self updateBounds];
-+        [self updateScale];
-     }
+-    }
 -
 -    // update screenBuffer
 -    if (pixman_image) {
 -        pixman_image_unref(pixman_image);
--    }
++        [self updateScale];
+     }
 -
 -    pixman_image = image;
  }
  
  - (void) setFullGrab:(id)sender
-@@ -1102,7 +1196,6 @@ - (void) notifyMouseModeChange {
+@@ -1102,7 +1188,6 @@ - (void) notifyMouseModeChange {
      }
  }
  - (BOOL) isMouseGrabbed {return isMouseGrabbed;}
@@ -666,7 +693,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
  
  /*
   * Makes the target think all down keys are being released.
-@@ -1156,7 +1249,11 @@ - (void)adjustSpeed:(id)sender;
+@@ -1156,7 +1241,11 @@ - (void)adjustSpeed:(id)sender;
  @end
  
  @implementation QemuCocoaAppController
@@ -678,7 +705,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
  {
      NSWindow *window;
  
-@@ -1164,16 +1261,21 @@ - (id) init
+@@ -1164,16 +1253,21 @@ - (id) init
  
      self = [super init];
      if (self) {
@@ -702,7 +729,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
              styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskClosable
              backing:NSBackingStoreBuffered defer:NO];
          if(!window) {
-@@ -1267,7 +1369,7 @@ - (void)windowDidExitFullScreen:(NSNotification *)notification
+@@ -1267,7 +1361,7 @@ - (void)windowDidExitFullScreen:(NSNotification *)notification
  
  - (void)windowDidResize:(NSNotification *)notification
  {
@@ -711,7 +738,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
      [cocoaView updateUIInfo];
  }
  
-@@ -1367,13 +1469,9 @@ - (void)zoomToFit:(id) sender
+@@ -1367,13 +1461,9 @@ - (void)zoomToFit:(id) sender
  
  - (void)toggleZoomInterpolation:(id) sender
  {
@@ -728,7 +755,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
  }
  
  /* Displays the console on the screen */
-@@ -1641,7 +1739,7 @@ static void create_initial_menus(void)
+@@ -1641,7 +1731,7 @@ static void create_initial_menus(void)
      [menuItem setState: [[cocoaView window] styleMask] & NSWindowStyleMaskResizable ? NSControlStateValueOn : NSControlStateValueOff];
      [menu addItem: menuItem];
      menuItem = [[[NSMenuItem alloc] initWithTitle:@"Zoom Interpolation" action:@selector(toggleZoomInterpolation:) keyEquivalent:@""] autorelease];
@@ -737,7 +764,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
      [menu addItem: menuItem];
      menuItem = [[[NSMenuItem alloc] initWithTitle:@"View" action:nil keyEquivalent:@""] autorelease];
      [menuItem setSubmenu:menu];
-@@ -1903,29 +2001,28 @@ static int cocoa_main(void)
+@@ -1903,29 +1993,28 @@ static int cocoa_main(void)
  static void cocoa_update(DisplayChangeListener *dcl,
                           int x, int y, int w, int h)
  {
@@ -776,7 +803,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
      });
  }
  
-@@ -1965,9 +2062,225 @@ static void cocoa_cursor_define(DisplayChangeListener *dcl, QEMUCursor *cursor)
+@@ -1965,9 +2054,296 @@ static void cocoa_cursor_define(DisplayChangeListener *dcl, QEMUCursor *cursor)
      });
  }
  
@@ -791,12 +818,59 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +
 +#ifdef CONFIG_OPENGL
 +
-+static void with_gl_view_ctx(CodeBlock block)
++@implementation QemuCGLLayer
++- (id)init
++{
++    self = [super init];
++    if (self) {
++        [self setAsynchronous:NO];
++    }
++    return self;
++}
++
++- (CGLContextObj)copyCGLContextForPixelFormat:(CGLPixelFormatObj)pf
++{
++    CGLContextObj ctx;
++    CGLCreateContext(pf, gl_scanout_ctx, &ctx);
++    return ctx;
++}
++
++- (CGLPixelFormatObj)copyCGLPixelFormatForDisplayMask:(uint32_t)mask
++{
++    CGLPixelFormatObj pix;
++    GLint npix;
++    CGLPixelFormatAttribute attribs[] = {
++        kCGLPFADisplayMask,
++        mask,
++        kCGLPFAOpenGLProfile,
++        (CGLPixelFormatAttribute)kCGLOGLPVersion_GL4_Core,
++        0
++    };
++
++    CGLChoosePixelFormat(attribs, &pix, &npix);
++
++    return pix;
++}
++
++- (void)drawInCGLContext:(CGLContextObj)ctx
++             pixelFormat:(CGLPixelFormatObj)pf
++            forLayerTime:(CFTimeInterval)t
++             displayTime:(const CVTimeStamp *)ts
++{
++    [cocoaView glDraw];
++    [super drawInCGLContext:ctx
++                pixelFormat:pf
++               forLayerTime:t
++                displayTime:ts];
++}
++@end
++
++static void with_gl_scanout_ctx(CodeBlock block)
 +{
 +#ifdef CONFIG_EGL
-+    if (egl_surface) {
-+        eglMakeCurrent(qemu_egl_display, egl_surface,
-+                       egl_surface, gl_view_ctx);
++    if (gl_view_ctx) {
++        eglMakeCurrent(qemu_egl_display, EGL_NO_SURFACE,
++                       EGL_NO_SURFACE, gl_scanout_ctx);
 +        block();
 +        eglMakeCurrent(qemu_egl_display, EGL_NO_SURFACE,
 +                       EGL_NO_SURFACE, EGL_NO_CONTEXT);
@@ -804,9 +878,20 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +    }
 +#endif
 +
-+    CGLSetCurrentContext((CGLContextObj)gl_view_ctx);
++    CGLSetCurrentContext((CGLContextObj)gl_scanout_ctx);
 +    block();
 +    CGLSetCurrentContext(NULL);
++}
++
++static void with_gl_surface(CodeBlock block)
++{
++    with_gl_scanout_ctx(^{
++        glWaitSync(gl_surface_sync, 0, GL_TIMEOUT_IGNORED);
++        glDeleteSync(gl_surface_sync);
++        block();
++        gl_surface_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
++        glFlush();
++    });
 +}
 +
 +static CGLPixelFormatObj cocoa_gl_create_cgl_pixel_format(int bpp)
@@ -815,7 +900,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +    GLint npix;
 +    CGLPixelFormatAttribute attribs[] = {
 +        kCGLPFAOpenGLProfile,
-+        (CGLPixelFormatAttribute)kCGLOGLPVersion_3_2_Core,
++        (CGLPixelFormatAttribute)kCGLOGLPVersion_GL4_Core,
 +        kCGLPFAColorSize,
 +        bpp,
 +        kCGLPFADoubleBuffer,
@@ -830,9 +915,9 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +static int cocoa_gl_make_context_current(DisplayGLCtx *dgc, QEMUGLContext ctx)
 +{
 +#ifdef CONFIG_EGL
-+    if (egl_surface) {
-+        EGLSurface current_surface = ctx == EGL_NO_CONTEXT ? EGL_NO_SURFACE : egl_surface;
-+        return !eglMakeCurrent(qemu_egl_display, current_surface, current_surface, ctx);
++    if (gl_view_ctx) {
++        return !eglMakeCurrent(qemu_egl_display,
++                               EGL_NO_SURFACE, EGL_NO_SURFACE, ctx);
 +    }
 +#endif
 +
@@ -847,16 +932,22 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +    int bpp;
 +
 +#ifdef CONFIG_EGL
-+    if (egl_surface) {
-+        eglMakeCurrent(qemu_egl_display, egl_surface,
-+                       egl_surface, gl_view_ctx);
-+        return qemu_egl_create_context(dgc, params);
++    if (gl_view_ctx) {
++        QEMUGLContext egl;
++
++        eglMakeCurrent(qemu_egl_display, EGL_NO_SURFACE,
++                       EGL_NO_SURFACE, gl_scanout_ctx);
++        egl = qemu_egl_create_context(dgc, params);
++        eglMakeCurrent(qemu_egl_display, EGL_NO_SURFACE,
++                       EGL_NO_SURFACE, EGL_NO_CONTEXT);
++
++        return egl;
 +    }
 +#endif
 +
 +    bpp = PIXMAN_FORMAT_BPP(surface_format(surface));
 +    format = cocoa_gl_create_cgl_pixel_format(bpp);
-+    CGLCreateContext(format, gl_view_ctx, &ctx);
++    CGLCreateContext(format, gl_scanout_ctx, &ctx);
 +    CGLDestroyPixelFormat(format);
 +
 +    return (QEMUGLContext)ctx;
@@ -865,7 +956,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +static void cocoa_gl_destroy_context(DisplayGLCtx *dgc, QEMUGLContext ctx)
 +{
 +#ifdef CONFIG_EGL
-+    if (egl_surface) {
++    if (gl_view_ctx) {
 +        eglDestroyContext(qemu_egl_display, ctx);
 +        return;
 +    }
@@ -874,74 +965,76 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +    CGLDestroyContext(ctx);
 +}
 +
++static void cocoa_gl_dispatch_display(void)
++{
++#ifdef CONFIG_EGL
++    if (gl_view_ctx && gl_needs_display) {
++        return;
++    }
++#endif
++
++    gl_needs_display = true;
++
++    dispatch_async(dispatch_get_main_queue(), ^{
++#ifdef CONFIG_EGL
++        if (gl_view_ctx) {
++            CAMetalLayer *layer = (CAMetalLayer *)[cocoaView layer];
++            id<CAMetalDrawable> drawable;
++            EGLImage image;
++
++            [layer setDrawableSize:[cocoaView convertSizeToBacking:[cocoaView frame].size]];
++
++            drawable = [layer nextDrawable];
++            if (!drawable) {
++                gl_needs_display = false;
++                return;
++            }
++
++            eglMakeCurrent(qemu_egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE,
++                           gl_view_ctx);
++            image = eglCreateImage(qemu_egl_display, EGL_NO_CONTEXT,
++                                   EGL_METAL_TEXTURE_ANGLE, [drawable texture],
++                                   NULL);
++            glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
++            eglDestroyImage(qemu_egl_display, image);
++            [cocoaView glDraw];
++            glFinish();
++            [drawable present];
++            return;
++        }
++#endif
++
++        [[cocoaView layer] setNeedsDisplay];
++    });
++}
++
 +static void cocoa_gl_update(DisplayChangeListener *dcl,
 +                            int x, int y, int w, int h)
 +{
-+    with_gl_view_ctx(^{
-+        surface_gl_update_texture(dgc.gls, surface, x, y, w, h);
-+        gl_dirty = true;
++    with_gl_surface(^{
++        surface_gl_update_texture(surface, x, y, w, h);
 +    });
++
++    cocoa_gl_dispatch_display();
 +}
 +
 +static void cocoa_gl_switch(DisplayChangeListener *dcl,
 +                            DisplaySurface *new_surface)
 +{
-+    with_gl_view_ctx(^{
-+        surface_gl_destroy_texture(dgc.gls, surface);
-+        surface_gl_create_texture(dgc.gls, new_surface);
++    with_gl_surface(^{
++        surface_gl_destroy_texture(surface);
++        surface_gl_create_texture(new_surface);
 +    });
 +
-+    cocoa_switch(dcl, new_surface);
-+    gl_dirty = true;
-+}
-+
-+static void cocoa_gl_render(void)
-+{
-+    NSSize size = [cocoaView convertSizeToBacking:[cocoaView frame].size];
-+    GLint filter = qatomic_read(&zoom_interpolation) ? GL_LINEAR : GL_NEAREST;
-+
-+    glViewport(0, 0, size.width, size.height);
-+
-+    if (gl_scanout_id) {
-+        glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
-+        glBindTexture(GL_TEXTURE_2D, gl_scanout_id);
-+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
-+        qemu_gl_run_texture_blit(dgc.gls, gl_scanout_y0_top);
-+    } else {
-+        glBindTexture(GL_TEXTURE_2D, surface->texture);
-+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
-+        surface_gl_render_texture(dgc.gls, surface);
-+    }
-+}
-+
-+static void cocoa_gl_refresh(DisplayChangeListener *dcl)
-+{
-+    cocoa_refresh(dcl);
-+
-+    if (gl_dirty) {
-+        gl_dirty = false;
-+
++    gl_scanout_id = new_surface->texture;
 +#ifdef CONFIG_EGL
-+        if (egl_surface) {
-+            with_gl_view_ctx(^{
-+                cocoa_gl_render();
-+                eglSwapBuffers(qemu_egl_display, egl_surface);
-+            });
-+
-+            return;
-+        }
++    gl_scanout_y_flip = !gl_view_ctx;
++#else
++    gl_scanout_y_flip = false;
 +#endif
-+
-+        dispatch_async(dispatch_get_main_queue(), ^{
-+            [[cocoaView layer] setNeedsDisplay];
-+        });
-+    }
-+}
-+
-+static void cocoa_gl_scanout_disable(DisplayChangeListener *dcl)
-+{
-+    gl_scanout_id = 0;
-+    gl_dirty = true;
++    gl_scanout_x = 0;
++    gl_scanout_y = 0;
++    cocoa_switch(dcl, new_surface);
 +}
 +
 +static void cocoa_gl_scanout_texture(DisplayChangeListener *dcl,
@@ -954,15 +1047,21 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +                                     void *d3d_tex2d)
 +{
 +    gl_scanout_id = backing_id;
-+    gl_scanout_y0_top = backing_y_0_top;
-+    gl_dirty = true;
++#ifdef CONFIG_EGL
++    gl_scanout_y_flip = gl_view_ctx ? backing_y_0_top : !backing_y_0_top;
++#else
++    gl_scanout_y_flip = !backing_y_0_top;
++#endif
++    gl_scanout_x = x;
++    gl_scanout_y = backing_y_0_top ? backing_height - h - y : y;
 +}
 +
 +static void cocoa_gl_scanout_flush(DisplayChangeListener *dcl,
 +                                   uint32_t x, uint32_t y,
 +                                   uint32_t w, uint32_t h)
 +{
-+    gl_dirty = true;
++    glFlush();
++    cocoa_gl_dispatch_display();
 +}
 +
 +static const DisplayChangeListenerOps dcl_gl_ops = {
@@ -970,11 +1069,10 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +    .dpy_gfx_update         = cocoa_gl_update,
 +    .dpy_gfx_switch         = cocoa_gl_switch,
 +    .dpy_gfx_check_format   = console_gl_check_format,
-+    .dpy_refresh            = cocoa_gl_refresh,
++    .dpy_refresh            = cocoa_refresh,
 +    .dpy_mouse_set          = cocoa_mouse_set,
 +    .dpy_cursor_define      = cocoa_cursor_define,
 +
-+    .dpy_gl_scanout_disable = cocoa_gl_scanout_disable,
 +    .dpy_gl_scanout_texture = cocoa_gl_scanout_texture,
 +    .dpy_gl_update          = cocoa_gl_scanout_flush,
 +};
@@ -1002,7 +1100,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
  
      COCOA_DEBUG("qemu_cocoa: cocoa_display_init\n");
  
-@@ -1978,10 +2291,70 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -1978,10 +2354,89 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
  
      [QemuApplication sharedApplication];
  
@@ -1015,7 +1113,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +#ifdef CONFIG_OPENGL
 +    controller = [[QemuCocoaAppController alloc] initWithGL:opts->gl];
 +#else
-+    controller = [[QemuCocoaAppController alloc] init];
++    controller = [QemuCocoaAppController new];
 +#endif
      [NSApp setDelegate:controller];
  
@@ -1023,19 +1121,36 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +#ifdef CONFIG_OPENGL
 +        if (opts->gl == DISPLAY_GL_MODE_ES) {
 +#ifdef CONFIG_EGL
-+            CALayer *layer = [cocoaView layer];
-+            uint64_t id = [[(CAMetalLayer *)layer preferredDevice] registryID];
++            CAMetalLayer *layer = (CAMetalLayer *)[cocoaView layer];
++            QEMUGLParams params = { .major_ver = 3, .minor_ver = 0 };
++            id<MTLDevice> device = [layer preferredDevice];
++            uint64_t id = [device registryID];
++            GLuint fb;
++            GLuint texture;
++
 +            if (qemu_egl_init_dpy_metal(DISPLAY_GL_MODE_ES, id)) {
 +                exit(1);
 +            }
++
 +            gl_view_ctx = qemu_egl_init_ctx();
 +            if (!gl_view_ctx) {
 +                exit(1);
 +            }
-+            egl_surface = qemu_egl_init_surface(gl_view_ctx, layer);
-+            if (!egl_surface) {
++
++            gl_scanout_ctx = qemu_egl_create_context(&dgc, &params);
++            if (!gl_scanout_ctx) {
 +                exit(1);
 +            }
++
++            eglMakeCurrent(qemu_egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE,
++                           gl_view_ctx);
++            glGenFramebuffers(1, &fb);
++            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb);
++            glGenTextures(1, &texture);
++            glBindTexture(GL_TEXTURE_2D, texture);
++            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
++                                   GL_TEXTURE_2D, texture, 0);
++            [layer setDevice:device];
 +#else
 +            error_report("OpenGLES without EGL is not supported - exiting");
 +            exit(1);
@@ -1045,14 +1160,16 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +            CGLContextObj ctx;
 +            CGLCreateContext(format, NULL, &ctx);
 +            CGLDestroyPixelFormat(format);
-+            gl_view_ctx = (QEMUGLContext)ctx;
++            gl_scanout_ctx = (QEMUGLContext)ctx;
 +#ifdef CONFIG_EGL
-+            egl_surface = EGL_NO_SURFACE;
++            gl_view_ctx = EGL_NO_CONTEXT;
 +#endif
-+            cocoa_gl_make_context_current(&dgc, gl_view_ctx);
 +        }
 +
-+        dgc.gls = qemu_gl_init_shader();
++        with_gl_scanout_ctx(^{
++            gl_surface_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
++        });
++
 +        dcl.ops = &dcl_gl_ops;
 +
 +        for (unsigned int index = 0; ; index++) {
@@ -1074,7 +1191,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
      /* if fullscreen mode is to be used */
      if (opts->has_full_screen && opts->full_screen) {
          [[cocoaView window] toggleFullScreen: nil];
-@@ -2005,9 +2378,8 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -2005,9 +2460,8 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
          [cocoaView window].styleMask |= NSWindowStyleMaskResizable;
      }
  
@@ -1086,7 +1203,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
  
      create_initial_menus();
      /*
-@@ -2020,9 +2392,6 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -2020,9 +2474,6 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
      add_console_menu_entries();
      addRemovableDevicesMenuItems();
  
@@ -1096,7 +1213,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
      // register vga output callbacks
      register_displaychangelistener(&dcl);
      qemu_add_mouse_mode_change_notifier(&mouse_mode_change_notifier);
-@@ -2044,6 +2413,7 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -2044,6 +2495,7 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
  
  static QemuDisplay qemu_display_cocoa = {
      .type       = DISPLAY_TYPE_COCOA,
@@ -1104,7 +1221,7 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
      .init       = cocoa_display_init,
  };
  
-@@ -2053,3 +2423,7 @@ static void register_cocoa(void)
+@@ -2053,3 +2505,7 @@ static void register_cocoa(void)
  }
  
  type_init(register_cocoa);
@@ -1112,6 +1229,48 @@ index 6ca91a1193e0e..72ac3d4e52dbd 100644
 +#ifdef CONFIG_OPENGL
 +module_dep("ui-opengl");
 +#endif
+diff --git a/ui/console-gl.c b/ui/console-gl.c
+index 403fc36fbdf23..5eb3c8a17858e 100644
+--- a/ui/console-gl.c
++++ b/ui/console-gl.c
+@@ -44,10 +44,8 @@ bool console_gl_check_format(DisplayChangeListener *dcl,
+     }
+ }
+ 
+-void surface_gl_create_texture(QemuGLShader *gls,
+-                               DisplaySurface *surface)
++void surface_gl_create_texture(DisplaySurface *surface)
+ {
+-    assert(gls);
+     assert(QEMU_IS_ALIGNED(surface_stride(surface), surface_bytes_per_pixel(surface)));
+ 
+     if (surface->texture) {
+@@ -144,14 +142,11 @@ bool surface_gl_create_texture_from_fd(DisplaySurface *surface,
+     return false;
+ }
+ 
+-void surface_gl_update_texture(QemuGLShader *gls,
+-                               DisplaySurface *surface,
++void surface_gl_update_texture(DisplaySurface *surface,
+                                int x, int y, int w, int h)
+ {
+     uint8_t *data = (void *)surface_data(surface);
+ 
+-    assert(gls);
+-
+     if (surface->texture) {
+         glBindTexture(GL_TEXTURE_2D, surface->texture);
+         glPixelStorei(GL_UNPACK_ROW_LENGTH_EXT,
+@@ -176,8 +171,7 @@ void surface_gl_render_texture(QemuGLShader *gls,
+     qemu_gl_run_texture_blit(gls, false);
+ }
+ 
+-void surface_gl_destroy_texture(QemuGLShader *gls,
+-                                DisplaySurface *surface)
++void surface_gl_destroy_texture(DisplaySurface *surface)
+ {
+     if (!surface || !surface->texture) {
+         return;
 diff --git a/ui/console.c b/ui/console.c
 index 2d00828c5382e..4c8d9f1c617af 100644
 --- a/ui/console.c
@@ -1130,8 +1289,56 @@ index 2d00828c5382e..4c8d9f1c617af 100644
  }
  
  PixelFormat qemu_default_pixelformat(int bpp)
+diff --git a/ui/dbus.c b/ui/dbus.c
+index d2dff332585e3..975bc6a0c9413 100644
+--- a/ui/dbus.c
++++ b/ui/dbus.c
+@@ -63,20 +63,20 @@ dbus_is_compatible_dcl(DisplayGLCtx *dgc,
+ static void
+ dbus_create_texture(DisplayGLCtx *ctx, DisplaySurface *surface)
+ {
+-    surface_gl_create_texture(ctx->gls, surface);
++    surface_gl_create_texture(surface);
+ }
+ 
+ static void
+ dbus_destroy_texture(DisplayGLCtx *ctx, DisplaySurface *surface)
+ {
+-    surface_gl_destroy_texture(ctx->gls, surface);
++    surface_gl_destroy_texture(surface);
+ }
+ 
+ static void
+ dbus_update_texture(DisplayGLCtx *ctx, DisplaySurface *surface,
+                     int x, int y, int w, int h)
+ {
+-    surface_gl_update_texture(ctx->gls, surface, x, y, w, h);
++    surface_gl_update_texture(surface, x, y, w, h);
+ }
+ 
+ static const DisplayGLCtxOps dbus_gl_ops = {
+@@ -119,9 +119,6 @@ dbus_display_init(Object *o)
+ 
+ #ifdef CONFIG_OPENGL
+     dd->glctx.ops = &dbus_gl_ops;
+-    if (display_opengl) {
+-        dd->glctx.gls = qemu_gl_init_shader();
+-    }
+ #endif
+     dd->iface = qemu_dbus_display1_vm_skeleton_new();
+     dd->consoles = g_ptr_array_new_with_free_func(g_object_unref);
+@@ -159,9 +156,6 @@ dbus_display_finalize(Object *o)
+     g_clear_object(&dd->iface);
+     g_free(dd->dbus_addr);
+     g_free(dd->audiodev);
+-#ifdef CONFIG_OPENGL
+-    g_clear_pointer(&dd->glctx.gls, qemu_gl_fini_shader);
+-#endif
+     dbus_display = NULL;
+ }
+ 
 diff --git a/ui/egl-helpers.c b/ui/egl-helpers.c
-index e3f2872cc14be..a7100fde6783f 100644
+index e3f2872cc14be..89662214196ab 100644
 --- a/ui/egl-helpers.c
 +++ b/ui/egl-helpers.c
 @@ -25,6 +25,12 @@
@@ -1147,6 +1354,15 @@ index e3f2872cc14be..a7100fde6783f 100644
  EGLDisplay *qemu_egl_display;
  EGLConfig qemu_egl_config;
  DisplayGLMode qemu_egl_mode;
+@@ -89,7 +95,7 @@ void egl_fb_destroy(egl_fb *fb)
+     }
+ 
+     egl_fb_delete_texture(fb);
+-    glDeleteFramebuffers(1, &fb->framebuffer);
++        glDeleteFramebuffers(1, &fb->framebuffer);
+ 
+     fb->width = 0;
+     fb->height = 0;
 @@ -466,7 +472,7 @@ void egl_dmabuf_create_fence(QemuDmaBuf *dmabuf)
  
  /* ---------------------------------------------------------------------- */
@@ -1343,9 +1559,20 @@ index e3f2872cc14be..a7100fde6783f 100644
  }
  #endif
 diff --git a/ui/gtk-egl.c b/ui/gtk-egl.c
-index ae9239999cdb6..68825121bfc80 100644
+index ae9239999cdb6..8844eca0e8a81 100644
 --- a/ui/gtk-egl.c
 +++ b/ui/gtk-egl.c
+@@ -36,8 +36,8 @@ static void gtk_egl_set_scanout_mode(VirtualConsole *vc, bool scanout)
+                        vc->gfx.esurface, vc->gfx.ectx);
+         egl_fb_destroy(&vc->gfx.guest_fb);
+         if (vc->gfx.surface) {
+-            surface_gl_destroy_texture(vc->gfx.gls, vc->gfx.ds);
+-            surface_gl_create_texture(vc->gfx.gls, vc->gfx.ds);
++            surface_gl_destroy_texture(vc->gfx.ds);
++            surface_gl_create_texture(vc->gfx.ds);
+         }
+     }
+ }
 @@ -57,7 +57,7 @@ void gd_egl_init(VirtualConsole *vc)
      }
  
@@ -1355,6 +1582,96 @@ index ae9239999cdb6..68825121bfc80 100644
          (vc->gfx.ectx, (EGLNativeWindowType)x11_window);
  
      assert(vc->gfx.esurface);
+@@ -133,13 +133,13 @@ void gd_egl_update(DisplayChangeListener *dcl,
+ {
+     VirtualConsole *vc = container_of(dcl, VirtualConsole, gfx.dcl);
+ 
+-    if (!vc->gfx.gls || !vc->gfx.ds) {
++    if (!vc->gfx.ds) {
+         return;
+     }
+ 
+     eglMakeCurrent(qemu_egl_display, vc->gfx.esurface,
+                    vc->gfx.esurface, vc->gfx.ectx);
+-    surface_gl_update_texture(vc->gfx.gls, vc->gfx.ds, x, y, w, h);
++    surface_gl_update_texture(vc->gfx.ds, x, y, w, h);
+     vc->gfx.glupdates++;
+     eglMakeCurrent(qemu_egl_display, EGL_NO_SURFACE,
+                    EGL_NO_SURFACE, EGL_NO_CONTEXT);
+@@ -165,8 +165,8 @@ void gd_egl_refresh(DisplayChangeListener *dcl)
+         }
+         vc->gfx.gls = qemu_gl_init_shader();
+         if (vc->gfx.ds) {
+-            surface_gl_destroy_texture(vc->gfx.gls, vc->gfx.ds);
+-            surface_gl_create_texture(vc->gfx.gls, vc->gfx.ds);
++            surface_gl_destroy_texture(vc->gfx.ds);
++            surface_gl_create_texture(vc->gfx.ds);
+         }
+ #ifdef CONFIG_GBM
+         if (vc->gfx.guest_fb.dmabuf) {
+@@ -201,10 +201,10 @@ void gd_egl_switch(DisplayChangeListener *dcl,
+     eglMakeCurrent(qemu_egl_display, vc->gfx.esurface,
+                    vc->gfx.esurface, vc->gfx.ectx);
+ 
+-    surface_gl_destroy_texture(vc->gfx.gls, vc->gfx.ds);
++    surface_gl_destroy_texture(vc->gfx.ds);
+     vc->gfx.ds = surface;
+     if (vc->gfx.gls) {
+-        surface_gl_create_texture(vc->gfx.gls, vc->gfx.ds);
++        surface_gl_create_texture(vc->gfx.ds);
+     }
+ 
+     if (resized) {
+diff --git a/ui/gtk-gl-area.c b/ui/gtk-gl-area.c
+index cd86022d264a2..0f00c4ac9a8af 100644
+--- a/ui/gtk-gl-area.c
++++ b/ui/gtk-gl-area.c
+@@ -29,8 +29,8 @@ static void gtk_gl_area_set_scanout_mode(VirtualConsole *vc, bool scanout)
+         gtk_gl_area_make_current(GTK_GL_AREA(vc->gfx.drawing_area));
+         egl_fb_destroy(&vc->gfx.guest_fb);
+         if (vc->gfx.surface) {
+-            surface_gl_destroy_texture(vc->gfx.gls, vc->gfx.ds);
+-            surface_gl_create_texture(vc->gfx.gls, vc->gfx.ds);
++            surface_gl_destroy_texture(vc->gfx.ds);
++            surface_gl_create_texture(vc->gfx.ds);
+         }
+     }
+ }
+@@ -147,12 +147,12 @@ void gd_gl_area_update(DisplayChangeListener *dcl,
+ {
+     VirtualConsole *vc = container_of(dcl, VirtualConsole, gfx.dcl);
+ 
+-    if (!vc->gfx.gls || !vc->gfx.ds) {
++    if (!vc->gfx.ds) {
+         return;
+     }
+ 
+     gtk_gl_area_make_current(GTK_GL_AREA(vc->gfx.drawing_area));
+-    surface_gl_update_texture(vc->gfx.gls, vc->gfx.ds, x, y, w, h);
++    surface_gl_update_texture(vc->gfx.ds, x, y, w, h);
+     vc->gfx.glupdates++;
+     gdk_gl_context_clear_current();
+ }
+@@ -191,7 +191,7 @@ void gd_gl_area_refresh(DisplayChangeListener *dcl)
+         gtk_gl_area_make_current(GTK_GL_AREA(vc->gfx.drawing_area));
+         vc->gfx.gls = qemu_gl_init_shader();
+         if (vc->gfx.ds) {
+-            surface_gl_create_texture(vc->gfx.gls, vc->gfx.ds);
++            surface_gl_create_texture(vc->gfx.ds);
+         }
+     }
+ 
+@@ -220,8 +220,8 @@ void gd_gl_area_switch(DisplayChangeListener *dcl,
+ 
+     if (vc->gfx.gls) {
+         gtk_gl_area_make_current(GTK_GL_AREA(vc->gfx.drawing_area));
+-        surface_gl_destroy_texture(vc->gfx.gls, vc->gfx.ds);
+-        surface_gl_create_texture(vc->gfx.gls, surface);
++        surface_gl_destroy_texture(vc->gfx.ds);
++        surface_gl_create_texture(surface);
+     }
+     vc->gfx.ds = surface;
+ 
 diff --git a/ui/gtk.c b/ui/gtk.c
 index 48571bedbf5a7..559c2ae12ca43 100644
 --- a/ui/gtk.c
@@ -1467,17 +1784,18 @@ index 48571bedbf5a7..559c2ae12ca43 100644
  module_dep("ui-opengl");
  #endif
 diff --git a/ui/meson.build b/ui/meson.build
-index 6371422c46046..e4edf0dc9b012 100644
+index 6371422c46046..42a0d25325b3b 100644
 --- a/ui/meson.build
 +++ b/ui/meson.build
-@@ -59,14 +59,16 @@ if opengl.found()
+@@ -58,15 +58,16 @@ system_ss.add(opengl)
+ if opengl.found()
    opengl_ss = ss.source_set()
    opengl_ss.add(gbm, pixman)
-   opengl_ss.add(when: [opengl],
+-  opengl_ss.add(when: [opengl],
 -               if_true: files('shader.c', 'console-gl.c', 'egl-helpers.c', 'egl-context.c'))
-+               if_true: files('shader.c', 'console-gl.c'))
++  opengl_ss.add(when: [opengl], if_true: files('shader.c', 'console-gl.c'))
 +  opengl_ss.add(when: [egl, opengl],
-+               if_true: files('egl-helpers.c', 'egl-context.c'))
++                if_true: files('egl-helpers.c', 'egl-context.c'))
    ui_modules += {'opengl' : opengl_ss}
  endif
  
@@ -1490,7 +1808,7 @@ index 6371422c46046..e4edf0dc9b012 100644
    ui_modules += {'egl-headless' : egl_headless_ss}
  endif
  
-@@ -111,8 +113,8 @@ if gtk.found()
+@@ -111,8 +112,8 @@ if gtk.found()
      gtk_ss.add(files('gtk-clipboard.c'))
    endif
    gtk_ss.add(when: x11, if_true: files('x_keymap.c'))
@@ -1501,7 +1819,7 @@ index 6371422c46046..e4edf0dc9b012 100644
    ui_modules += {'gtk' : gtk_ss}
  endif
  
-@@ -123,7 +125,7 @@ if sdl.found()
+@@ -123,7 +124,7 @@ if sdl.found()
      'sdl2-input.c',
      'sdl2.c',
    ))
@@ -1510,6 +1828,48 @@ index 6371422c46046..e4edf0dc9b012 100644
    sdl_ss.add(when: x11, if_true: files('x_keymap.c'))
    ui_modules += {'sdl' : sdl_ss}
  endif
+diff --git a/ui/sdl2-gl.c b/ui/sdl2-gl.c
+index 3be17d1079afa..ef091b471df87 100644
+--- a/ui/sdl2-gl.c
++++ b/ui/sdl2-gl.c
+@@ -40,8 +40,8 @@ static void sdl2_set_scanout_mode(struct sdl2_console *scon, bool scanout)
+     if (!scon->scanout_mode) {
+         egl_fb_destroy(&scon->guest_fb);
+         if (scon->surface) {
+-            surface_gl_destroy_texture(scon->gls, scon->surface);
+-            surface_gl_create_texture(scon->gls, scon->surface);
++            surface_gl_destroy_texture(scon->surface);
++            surface_gl_create_texture(scon->surface);
+         }
+     }
+ }
+@@ -72,7 +72,7 @@ void sdl2_gl_update(DisplayChangeListener *dcl,
+     }
+ 
+     SDL_GL_MakeCurrent(scon->real_window, scon->winctx);
+-    surface_gl_update_texture(scon->gls, scon->surface, x, y, w, h);
++    surface_gl_update_texture(scon->surface, x, y, w, h);
+     scon->updates++;
+ }
+ 
+@@ -85,7 +85,7 @@ void sdl2_gl_switch(DisplayChangeListener *dcl,
+     assert(scon->opengl);
+ 
+     SDL_GL_MakeCurrent(scon->real_window, scon->winctx);
+-    surface_gl_destroy_texture(scon->gls, scon->surface);
++    surface_gl_destroy_texture(scon->surface);
+ 
+     scon->surface = new_surface;
+ 
+@@ -105,7 +105,7 @@ void sdl2_gl_switch(DisplayChangeListener *dcl,
+         sdl2_window_resize(scon);
+     }
+ 
+-    surface_gl_create_texture(scon->gls, scon->surface);
++    surface_gl_create_texture(scon->surface);
+ }
+ 
+ void sdl2_gl_refresh(DisplayChangeListener *dcl)
 diff --git a/ui/sdl2.c b/ui/sdl2.c
 index 032dc14bc3988..1b124041d7612 100644
 --- a/ui/sdl2.c
@@ -1567,60 +1927,64 @@ index 032dc14bc3988..1b124041d7612 100644
 +#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
  module_dep("ui-opengl");
  #endif
-diff --git a/ui/shader.c b/ui/shader.c
-index ab448c41d4c67..c5c9f754cc8f0 100644
---- a/ui/shader.c
-+++ b/ui/shader.c
-@@ -152,11 +152,19 @@ static GLuint qemu_gl_create_compile_link_program(const GLchar *vert_src,
- QemuGLShader *qemu_gl_init_shader(void)
+diff --git a/ui/spice-display.c b/ui/spice-display.c
+index db71e866f89ff..c076450d862bb 100644
+--- a/ui/spice-display.c
++++ b/ui/spice-display.c
+@@ -889,7 +889,7 @@ static void spice_gl_update(DisplayChangeListener *dcl,
  {
-     QemuGLShader *gls = g_new0(QemuGLShader, 1);
--
-+    const char *header = epoxy_is_desktop_gl() ? "#version 140\n" : "#version 300 es\n";
-+    char vert_src[256];
-+    char frag_src[256];
-+    char *vert_src_body = stpcpy(vert_src, header);
-+    char *frag_src_body = stpcpy(frag_src, header);
-+
-+    strcpy(vert_src_body, texture_blit_vert_src);
-+    strcpy(frag_src_body, texture_blit_frag_src);
-     gls->texture_blit_prog = qemu_gl_create_compile_link_program
--        (texture_blit_vert_src, texture_blit_frag_src);
-+        (vert_src, frag_src);
-+    strcpy(vert_src_body, texture_blit_flip_vert_src);
-     gls->texture_blit_flip_prog = qemu_gl_create_compile_link_program
--        (texture_blit_flip_vert_src, texture_blit_frag_src);
-+        (vert_src, frag_src);
-     if (!gls->texture_blit_prog || !gls->texture_blit_flip_prog) {
-         exit(1);
-     }
-diff --git a/ui/shader/texture-blit-flip.vert b/ui/shader/texture-blit-flip.vert
-index f7a448d229ea2..1e4ac4c947475 100644
---- a/ui/shader/texture-blit-flip.vert
-+++ b/ui/shader/texture-blit-flip.vert
-@@ -1,5 +1,3 @@
--#version 300 es
--
- in vec2  in_position;
- out vec2 ex_tex_coord;
+     SimpleSpiceDisplay *ssd = container_of(dcl, SimpleSpiceDisplay, dcl);
  
-diff --git a/ui/shader/texture-blit.frag b/ui/shader/texture-blit.frag
-index 8ed95a46b66e1..bd296a2ffbf51 100644
---- a/ui/shader/texture-blit.frag
-+++ b/ui/shader/texture-blit.frag
-@@ -1,5 +1,3 @@
--#version 300 es
--
- uniform sampler2D image;
- in  mediump vec2 ex_tex_coord;
- out mediump vec4 out_frag_color;
-diff --git a/ui/shader/texture-blit.vert b/ui/shader/texture-blit.vert
-index fb48d7066541d..ae205f6377825 100644
---- a/ui/shader/texture-blit.vert
-+++ b/ui/shader/texture-blit.vert
-@@ -1,5 +1,3 @@
--#version 300 es
--
- in vec2  in_position;
- out vec2 ex_tex_coord;
+-    surface_gl_update_texture(ssd->gls, ssd->ds, x, y, w, h);
++    surface_gl_update_texture(ssd->ds, x, y, w, h);
+     ssd->gl_updates++;
+ }
+ 
+@@ -957,11 +957,11 @@ static bool spice_gl_replace_fd_texture(SimpleSpiceDisplay *ssd,
+                                         num_planes,
+                                         modifier);
+         if (!ret) {
+-            surface_gl_destroy_texture(ssd->gls, ssd->ds);
++            surface_gl_destroy_texture(ssd->ds);
+             warn_report("spice: no texture available to display");
+         }
+     } else {
+-        surface_gl_destroy_texture(ssd->gls, ssd->ds);
++        surface_gl_destroy_texture(ssd->ds);
+         ssd->ds->texture = texture;
+         ssd->ds->mem_obj = mem_obj;
+     }
+@@ -997,7 +997,7 @@ static void spice_gl_switch(DisplayChangeListener *dcl,
+     bool ret;
+ 
+     if (ssd->ds) {
+-        surface_gl_destroy_texture(ssd->gls, ssd->ds);
++        surface_gl_destroy_texture(ssd->ds);
+     }
+     ssd->ds = new_surface;
+     if (ssd->ds) {
+@@ -1005,7 +1005,7 @@ static void spice_gl_switch(DisplayChangeListener *dcl,
+         int fd[DMABUF_MAX_PLANES], num_planes, fourcc;
+         uint64_t modifier;
+ 
+-        surface_gl_create_texture(ssd->gls, ssd->ds);
++        surface_gl_create_texture(ssd->ds);
+         if (!egl_dmabuf_export_texture(ssd->ds->texture,
+                                        fd,
+                                        (EGLint *)offset,
+@@ -1013,13 +1013,13 @@ static void spice_gl_switch(DisplayChangeListener *dcl,
+                                        &fourcc,
+                                        &num_planes,
+                                        &modifier)) {
+-            surface_gl_destroy_texture(ssd->gls, ssd->ds);
++            surface_gl_destroy_texture(ssd->ds);
+             return;
+         }
+ 
+         ret = spice_gl_replace_fd_texture(ssd, fd, &modifier, &num_planes);
+         if (!ret) {
+-            surface_gl_destroy_texture(ssd->gls, ssd->ds);
++            surface_gl_destroy_texture(ssd->ds);
+             return;
+         }
  
