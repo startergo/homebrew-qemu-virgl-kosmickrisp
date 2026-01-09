@@ -9,20 +9,24 @@ necessary for proper display initialization with Desktop GL on macOS.
 diff --git a/hw/display/virtio-gpu-virgl.c b/hw/display/virtio-gpu-virgl.c
 --- a/hw/display/virtio-gpu-virgl.c
 +++ b/hw/display/virtio-gpu-virgl.c
-@@ -19,6 +19,7 @@
+@@ -17,10 +17,11 @@
+ #include "trace.h"
+ #include "hw/virtio/virtio.h"
  #include "hw/virtio/virtio-gpu.h"
  #include "hw/virtio/virtio-gpu-bswap.h"
  #include "hw/virtio/virtio-gpu-pixman.h"
 +#include "ui/console.h"
- 
+
  #include "ui/egl-helpers.h"
- 
-@@ -40,6 +41,38 @@
+
+ #include <virglrenderer.h>
+
+@@ -40,10 +41,42 @@
      }
- 
+
      return container_of(res, struct virtio_gpu_virgl_resource, base);
-+}
-+
+ }
+
 +static DisplayGLTexture virgl_borrow_texture_for_scanout(uint32_t id)
 +{
 +    DisplayGLTexture texture = {};
@@ -53,13 +57,19 @@ diff --git a/hw/display/virtio-gpu-virgl.c b/hw/display/virtio-gpu-virgl.c
 +    texture.id = info.tex_id;
 +
 +    return texture;
- }
- 
++}
++
  #if VIRGL_RENDERER_CALLBACKS_VERSION >= 4
+ static void *
+ virgl_get_egl_display(G_GNUC_UNUSED void *cookie)
+ {
+     return qemu_egl_display;
 diff --git a/include/ui/console.h b/include/ui/console.h
 --- a/include/ui/console.h
 +++ b/include/ui/console.h
-@@ -131,6 +131,20 @@
+@@ -128,10 +128,20 @@
+ /* consoles */
+
  struct QemuConsoleClass {
      ObjectClass parent_class;
  };
@@ -73,34 +83,45 @@ diff --git a/include/ui/console.h b/include/ui/console.h
 +} DisplayGLTexture;
 +
 +typedef DisplayGLTexture (*DisplayGLTextureBorrower)(uint32_t id);
-+
+
  typedef struct ScanoutTexture {
      uint32_t backing_id;
      bool backing_y_0_top;
+     uint32_t backing_width;
 diff --git a/ui/console.c b/ui/console.c
 --- a/ui/console.c
 +++ b/ui/console.c
-@@ -70,6 +70,7 @@
+@@ -68,10 +68,11 @@
+ };
+
  static DisplayState *display_state;
  static QTAILQ_HEAD(, QemuConsole) consoles =
      QTAILQ_HEAD_INITIALIZER(consoles);
 +static DisplayGLTextureBorrower gl_scanout_borrow;
- 
+
  static void dpy_refresh(DisplayState *s);
  static DisplayState *get_alloc_displaystate(void);
+ static bool displaychangelistener_has_dmabuf(DisplayChangeListener *dcl);
+ static bool console_compatible_with(QemuConsole *con,
 diff --git a/ui/cocoa.m b/ui/cocoa.m
 --- a/ui/cocoa.m
 +++ b/ui/cocoa.m
-@@ -106,7 +106,7 @@
- 
+@@ -104,11 +104,11 @@
+ @interface QemuCGLLayer : CAOpenGLLayer
+ @end
+
  static bool gl_dirty;
  static uint32_t gl_scanout_id;
 -static bool gl_scanout_y0_top;
 +static DisplayGLTextureBorrower gl_scanout_borrow;
  static QEMUGLContext gl_view_ctx;
  static NSOpenGLContext *gl_view_nsctx;
- 
-@@ -2333,7 +2333,14 @@
+
+ #ifdef CONFIG_EGL
+ static EGLSurface egl_surface;
+@@ -2331,11 +2331,18 @@
+
+     if (gl_scanout_id) {
          glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
          glBindTexture(GL_TEXTURE_2D, gl_scanout_id);
          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
@@ -116,15 +137,23 @@ diff --git a/ui/cocoa.m b/ui/cocoa.m
      } else {
          glBindTexture(GL_TEXTURE_2D, surface->texture);
          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
-@@ -2368,6 +2375,7 @@
+         surface_gl_render_texture(dgc.gls, surface);
+     }
+@@ -2366,10 +2373,11 @@
+ }
+
  static void cocoa_gl_scanout_disable(DisplayChangeListener *dcl)
  {
      gl_scanout_id = 0;
 +    gl_scanout_borrow = NULL;
      gl_dirty = true;
  }
- 
-@@ -2381,7 +2389,9 @@
+
+ static void cocoa_gl_scanout_texture(DisplayChangeListener *dcl,
+                                      uint32_t backing_id,
+@@ -2379,11 +2387,13 @@
+                                      uint32_t x, uint32_t y,
+                                      uint32_t w, uint32_t h,
                                       void *d3d_tex2d)
  {
      gl_scanout_id = backing_id;
@@ -134,4 +163,6 @@ diff --git a/ui/cocoa.m b/ui/cocoa.m
 +    gl_scanout_borrow = (DisplayGLTextureBorrower)(uintptr_t)d3d_tex2d;
      gl_dirty = true;
  }
- 
+
+ static void cocoa_gl_scanout_flush(DisplayChangeListener *dcl,
+                                    uint32_t x, uint32_t y,
