@@ -1,221 +1,46 @@
-From: Texture Borrowing Support for Desktop GL
-Subject: Add texture borrowing mechanism for Desktop GL (gl=core) on macOS
+From: Use EGL for Desktop GL and fix inverted boot display on macOS
+Subject: Use EGL for Desktop GL and fix texture orientation for ANGLE Metal backend
 
-This patch adds texture borrowing support to enable proper Desktop GL
-rendering with NSOpenGLContext. The texture borrowing callback allows
-the UI to directly access texture data from virglrenderer, which is
-necessary for proper display initialization with Desktop GL on macOS.
+Changes:
+1. Use EGL for Desktop GL (gl=core) on macOS instead of NSOpenGLContext
+   - NSOpenGLContext cannot share objects with virglrenderer's EGL context
+   - Always use CAMetalLayer for OpenGL rendering on macOS
+   - Initialize EGL with core profile for Desktop GL mode
 
---- a/hw/display/virtio-gpu-virgl.c	2026-01-08 01:45:15
-+++ b/hw/display/virtio-gpu-virgl.c	2026-01-08 23:30:55
-@@ -12,20 +12,21 @@
-  */
- 
- #include "qemu/osdep.h"
- #include "qemu/error-report.h"
- #include "qemu/iov.h"
- #include "trace.h"
- #include "hw/virtio/virtio.h"
- #include "hw/virtio/virtio-gpu.h"
- #include "hw/virtio/virtio-gpu-bswap.h"
- #include "hw/virtio/virtio-gpu-pixman.h"
-+#include "ui/console.h"
- 
- #include "ui/egl-helpers.h"
- 
- #include <virglrenderer.h>
- 
- struct virtio_gpu_virgl_resource {
-     struct virtio_gpu_simple_resource base;
-     MemoryRegion *mr;
- };
- 
-@@ -33,20 +34,52 @@
- virtio_gpu_virgl_find_resource(VirtIOGPU *g, uint32_t resource_id)
- {
-     struct virtio_gpu_simple_resource *res;
- 
-     res = virtio_gpu_find_resource(g, resource_id);
-     if (!res) {
-         return NULL;
-     }
- 
-     return container_of(res, struct virtio_gpu_virgl_resource, base);
-+}
-+
-+static DisplayGLTexture virgl_borrow_texture_for_scanout(uint32_t id)
-+{
-+    DisplayGLTexture texture = {};
-+    struct virgl_renderer_resource_info info;
-+    int ret;
-+
-+#if VIRGL_VERSION_MAJOR >= 1
-+    struct virgl_renderer_resource_info_ext ext;
-+    memset(&ext, 0, sizeof(ext));
-+#ifdef HAVE_VIRGL_RENDERER_BORROW_TEXTURE_FOR_SCANOUT
-+    ret = virgl_renderer_borrow_texture_for_scanout(id, &ext);
-+#else
-+    ret = virgl_renderer_resource_get_info_ext(id, &ext);
-+#endif
-+    info = ext.base;
-+    texture.d3d_tex2d = ext.d3d_tex2d;
-+#else
-+    memset(&info, 0, sizeof(info));
-+    ret = virgl_renderer_resource_get_info(id, &info);
-+#endif
-+    if (ret) {
-+        return texture;
-+    }
-+
-+    texture.y_0_top = info.flags & VIRTIO_GPU_RESOURCE_FLAG_Y_0_TOP;
-+    texture.width = info.width;
-+    texture.height = info.height;
-+    texture.id = info.tex_id;
-+
-+    return texture;
- }
- 
- #if VIRGL_RENDERER_CALLBACKS_VERSION >= 4
- static void *
- virgl_get_egl_display(G_GNUC_UNUSED void *cookie)
- {
-     return qemu_egl_display;
- }
- #endif
- 
-@@ -413,28 +446,27 @@
-     if (ss.scanout_id >= g->parent_obj.conf.max_outputs) {
-         qemu_log_mask(LOG_GUEST_ERROR, "%s: illegal scanout id specified %d",
-                       __func__, ss.scanout_id);
-         cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID;
-         return;
-     }
-     g->parent_obj.enable = 1;
- 
-     if (ss.resource_id && ss.r.width && ss.r.height) {
-         struct virgl_renderer_resource_info info;
--        void *d3d_tex2d = NULL;
-+        void *d3d_tex2d = (void *)virgl_borrow_texture_for_scanout;
- 
- #if VIRGL_VERSION_MAJOR >= 1
-         struct virgl_renderer_resource_info_ext ext;
-         memset(&ext, 0, sizeof(ext));
-         ret = virgl_renderer_resource_get_info_ext(ss.resource_id, &ext);
-         info = ext.base;
--        d3d_tex2d = ext.d3d_tex2d;
- #else
-         memset(&info, 0, sizeof(info));
-         ret = virgl_renderer_resource_get_info(ss.resource_id, &info);
- #endif
-         if (ret) {
-             qemu_log_mask(LOG_GUEST_ERROR,
-                           "%s: illegal resource specified %d\n",
-                           __func__, ss.resource_id);
-             cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
-             return;
---- a/include/ui/console.h	2026-01-08 01:45:15
-+++ b/include/ui/console.h	2026-01-08 22:55:23
-@@ -123,20 +123,30 @@
-                                 uint64_t num_slot,
-                                 int width, int height,
-                                 double x, double y,
-                                 InputMultiTouchType type,
-                                 Error **errp);
- /* consoles */
- 
- struct QemuConsoleClass {
-     ObjectClass parent_class;
- };
-+
-+typedef struct DisplayGLTexture {
-+    uint32_t id;
-+    bool y_0_top;
-+    uint32_t width;
-+    uint32_t height;
-+    void *d3d_tex2d;
-+} DisplayGLTexture;
-+
-+typedef DisplayGLTexture (*DisplayGLTextureBorrower)(uint32_t id);
- 
- typedef struct ScanoutTexture {
-     uint32_t backing_id;
-     bool backing_y_0_top;
-     uint32_t backing_width;
-     uint32_t backing_height;
-     uint32_t x;
-     uint32_t y;
-     uint32_t width;
-     uint32_t height;
+2. Fix inverted display during boot by forcing correct shader for ANGLE
+   - ANGLE Metal backend always renders textures with Y=0 at top
+   - Ignore guest's y_0_top flag and always use flip shader
+   - Fixes boot display showing upside down while preserving login screen
+
 --- a/ui/cocoa.m	2026-01-08 22:58:51
-+++ b/ui/cocoa.m	2026-01-09 00:24:00
-@@ -99,21 +99,21 @@
- static QemuEvent cbevent;
- static QemuCocoaPasteboardTypeOwner *cbowner;
++++ b/ui/cocoa.m	2026-01-09 08:36:16
+@@ -476,22 +476,23 @@
+         screen.width = frameRect.size.width;
+         screen.height = frameRect.size.height;
+         colorspace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+ #if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_VERSION_14_0
+         [self setClipsToBounds:YES];
+ #endif
+         [self setWantsLayer:YES];
  
  #ifdef CONFIG_OPENGL
- 
- @interface QemuCGLLayer : CAOpenGLLayer
- @end
- 
- static bool gl_dirty;
- static uint32_t gl_scanout_id;
--static bool gl_scanout_y0_top;
-+static DisplayGLTextureBorrower gl_scanout_borrow = NULL;
- static QEMUGLContext gl_view_ctx;
- static NSOpenGLContext *gl_view_nsctx;
- 
- #ifdef CONFIG_EGL
- static EGLSurface egl_surface;
+         if (gl) {
+-            bool es = gl == DISPLAY_GL_MODE_ES;
+-            CALayer *layer = es ? [CAMetalLayer new] : [QemuCGLLayer new];
++            // Use CAMetalLayer for both Desktop GL and OpenGL ES on macOS
++            // EGL with ANGLE Metal backend handles both modes
++            CALayer *layer = [CAMetalLayer new];
+             [self setLayer:layer];
+             [layer release];
+         }
  #endif
  
- static void cocoa_gl_switch(DisplayChangeListener *dcl,
-                             DisplaySurface *new_surface);
+         cursorLayer = [[CALayer alloc] init];
+         [cursorLayer setAnchorPoint:CGPointMake(0, 1)];
+         [cursorLayer setZPosition:1];
+         [[self layer] addSublayer:cursorLayer];
  
-@@ -2326,21 +2326,28 @@
- {
-     NSSize size = [cocoaView convertSizeToBacking:[cocoaView frame].size];
-     GLint filter = qatomic_read(&zoom_interpolation) ? GL_LINEAR : GL_NEAREST;
- 
-     glViewport(0, 0, size.width, size.height);
- 
-     if (gl_scanout_id) {
-         glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
-         glBindTexture(GL_TEXTURE_2D, gl_scanout_id);
-         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
--        qemu_gl_run_texture_blit(dgc.gls, gl_scanout_y0_top);
-+
-+        /* Use texture borrowing callback for Desktop GL */
-+        bool y_0_top = false;
-+        if (gl_scanout_borrow) {
-+            DisplayGLTexture texture = gl_scanout_borrow(gl_scanout_id);
-+            y_0_top = texture.y_0_top;
-+        }
-+        qemu_gl_run_texture_blit(dgc.gls, y_0_top);
-     } else {
-         glBindTexture(GL_TEXTURE_2D, surface->texture);
-         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
-         surface_gl_render_texture(dgc.gls, surface);
-     }
- }
- 
- static void cocoa_gl_refresh(DisplayChangeListener *dcl)
- {
-     cocoa_refresh(dcl);
-@@ -2361,34 +2368,36 @@
- 
-         dispatch_async(dispatch_get_main_queue(), ^{
-             [[cocoaView layer] setNeedsDisplay];
-         });
-     }
- }
- 
- static void cocoa_gl_scanout_disable(DisplayChangeListener *dcl)
- {
-     gl_scanout_id = 0;
-+    gl_scanout_borrow = NULL;
-     gl_dirty = true;
- }
- 
+@@ -2374,21 +2375,23 @@
  static void cocoa_gl_scanout_texture(DisplayChangeListener *dcl,
                                       uint32_t backing_id,
                                       bool backing_y_0_top,
@@ -227,8 +52,9 @@ necessary for proper display initialization with Desktop GL on macOS.
  {
      gl_scanout_id = backing_id;
 -    gl_scanout_y0_top = backing_y_0_top;
-+    /* Store the texture borrowing callback */
-+    gl_scanout_borrow = (DisplayGLTextureBorrower)(uintptr_t)d3d_tex2d;
++    /* ANGLE Metal backend always uses Y=0 at top
++     * Use flip shader regardless of guest's y_0_top flag */
++    gl_scanout_y0_top = true;
      gl_dirty = true;
  }
  
@@ -238,4 +64,73 @@ necessary for proper display initialization with Desktop GL on macOS.
  {
      gl_dirty = true;
  }
+ 
+@@ -2443,51 +2446,40 @@
+     // Create an Application controller
+ #ifdef CONFIG_OPENGL
+     controller = [[QemuCocoaAppController alloc] initWithGL:opts->gl];
+ #else
+     controller = [[QemuCocoaAppController alloc] init];
+ #endif
+     [NSApp setDelegate:controller];
+ 
+     if (display_opengl) {
+ #ifdef CONFIG_OPENGL
+-        if (opts->gl == DISPLAY_GL_MODE_ES) {
+ #ifdef CONFIG_EGL
+-            CALayer *layer = [cocoaView layer];
+-            uint64_t id = [[(CAMetalLayer *)layer preferredDevice] registryID];
+-            if (qemu_egl_init_dpy_metal(DISPLAY_GL_MODE_ES, id)) {
+-                exit(1);
+-            }
+-            gl_view_ctx = qemu_egl_init_ctx();
+-            if (!gl_view_ctx) {
+-                exit(1);
+-            }
+-            egl_surface = qemu_egl_init_surface(gl_view_ctx, layer);
+-            if (!egl_surface) {
+-                exit(1);
+-            }
+-#else
+-            error_report("OpenGLES without EGL is not supported - exiting");
++        CALayer *layer = [cocoaView layer];
++        uint64_t id = [[(CAMetalLayer *)layer preferredDevice] registryID];
++        if (qemu_egl_init_dpy_metal(opts->gl, id)) {
+             exit(1);
+-#endif
+-        } else {
+-            gl_view_nsctx = cocoa_gl_create_nscontext(32);
+-            if (!gl_view_nsctx) {
+-                exit(1);
+-            }
+-            [gl_view_nsctx makeCurrentContext];
+-            gl_view_ctx = (QEMUGLContext)[gl_view_nsctx CGLContextObj];
+-#ifdef CONFIG_EGL
+-            egl_surface = EGL_NO_SURFACE;
+-#endif
+-            cocoa_gl_make_context_current(&dgc, gl_view_ctx);
+         }
++        gl_view_ctx = qemu_egl_init_ctx();
++        if (!gl_view_ctx) {
++            exit(1);
++        }
++        egl_surface = qemu_egl_init_surface(gl_view_ctx, layer);
++        if (!egl_surface) {
++            exit(1);
++        }
++        cocoa_gl_make_context_current(&dgc, gl_view_ctx);
++#else
++        error_report("OpenGL without EGL is not supported on macOS - exiting");
++        exit(1);
++#endif
++        gl_view_nsctx = nil;
+ 
+         dgc.gls = qemu_gl_init_shader();
+         dcl.ops = &dcl_gl_ops;
+ 
+         for (unsigned int index = 0; ; index++) {
+             QemuConsole *con = qemu_console_lookup_by_index(index);
+             if (!con) {
+                 break;
+             }
  
