@@ -1,1375 +1,7 @@
-From 01deebf5f65a86fc6b5c73d6217a9e6036ebb4b1 Mon Sep 17 00:00:00 2001
-From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
-Date: Wed, 24 Dec 2025 10:55:47 +0900
-Subject: coreaudio: Remove extra whitespaces
-
-Remove extra whitespaces around parentheses.
-
-Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
----
- audio/coreaudio.m | 108 +++++++++++++++++++++++-----------------------
- 1 file changed, 54 insertions(+), 54 deletions(-)
-
-diff --git a/audio/coreaudio.m b/audio/coreaudio.m
-index f422dcc3ee..0c897c7398 100644
---- a/audio/coreaudio.m
-+++ b/audio/coreaudio.m
-@@ -149,7 +149,7 @@ static OSStatus coreaudio_get_isrunning(AudioDeviceID id, UInt32 *result)
-                                       result);
- }
- 
--static void coreaudio_logstatus (OSStatus status)
-+static void coreaudio_logstatus(OSStatus status)
- {
-     const char *str = "BUG";
- 
-@@ -199,14 +199,14 @@ static void coreaudio_logstatus (OSStatus status)
-         break;
- 
-     default:
--        AUD_log (AUDIO_CAP, "Reason: status code %" PRId32 "\n", (int32_t)status);
-+        AUD_log(AUDIO_CAP, "Reason: status code %" PRId32 "\n", (int32_t)status);
-         return;
-     }
- 
--    AUD_log (AUDIO_CAP, "Reason: %s\n", str);
-+    AUD_log(AUDIO_CAP, "Reason: %s\n", str);
- }
- 
--static void G_GNUC_PRINTF (2, 3) coreaudio_logerr (
-+static void G_GNUC_PRINTF(2, 3) coreaudio_logerr(
-     OSStatus status,
-     const char *fmt,
-     ...
-@@ -214,14 +214,14 @@ static void G_GNUC_PRINTF (2, 3) coreaudio_logerr (
- {
-     va_list ap;
- 
--    va_start (ap, fmt);
--    AUD_log (AUDIO_CAP, fmt, ap);
--    va_end (ap);
-+    va_start(ap, fmt);
-+    AUD_log(AUDIO_CAP, fmt, ap);
-+    va_end(ap);
- 
--    coreaudio_logstatus (status);
-+    coreaudio_logstatus(status);
- }
- 
--static void G_GNUC_PRINTF (3, 4) coreaudio_logerr2 (
-+static void G_GNUC_PRINTF(3, 4) coreaudio_logerr2(
-     OSStatus status,
-     const char *typ,
-     const char *fmt,
-@@ -230,39 +230,39 @@ static void G_GNUC_PRINTF (3, 4) coreaudio_logerr2 (
- {
-     va_list ap;
- 
--    AUD_log (AUDIO_CAP, "Could not initialize %s\n", typ);
-+    AUD_log(AUDIO_CAP, "Could not initialize %s\n", typ);
- 
--    va_start (ap, fmt);
--    AUD_vlog (AUDIO_CAP, fmt, ap);
--    va_end (ap);
-+    va_start(ap, fmt);
-+    AUD_vlog(AUDIO_CAP, fmt, ap);
-+    va_end(ap);
- 
--    coreaudio_logstatus (status);
-+    coreaudio_logstatus(status);
- }
- 
- #define coreaudio_playback_logerr(status, ...) \
-     coreaudio_logerr2(status, "playback", __VA_ARGS__)
- 
--static int coreaudio_buf_lock (coreaudioVoiceOut *core, const char *fn_name)
-+static int coreaudio_buf_lock(coreaudioVoiceOut *core, const char *fn_name)
- {
-     int err;
- 
--    err = pthread_mutex_lock (&core->buf_mutex);
-+    err = pthread_mutex_lock(&core->buf_mutex);
-     if (err) {
--        dolog ("Could not lock voice for %s\nReason: %s\n",
--               fn_name, strerror (err));
-+        dolog("Could not lock voice for %s\nReason: %s\n",
-+              fn_name, strerror(err));
-         return -1;
-     }
-     return 0;
- }
- 
--static int coreaudio_buf_unlock (coreaudioVoiceOut *core, const char *fn_name)
-+static int coreaudio_buf_unlock(coreaudioVoiceOut *core, const char *fn_name)
- {
-     int err;
- 
--    err = pthread_mutex_unlock (&core->buf_mutex);
-+    err = pthread_mutex_unlock(&core->buf_mutex);
-     if (err) {
--        dolog ("Could not unlock voice for %s\nReason: %s\n",
--               fn_name, strerror (err));
-+        dolog("Could not unlock voice for %s\nReason: %s\n",
-+               fn_name, strerror(err));
-         return -1;
-     }
-     return 0;
-@@ -271,7 +271,7 @@ static int coreaudio_buf_unlock (coreaudioVoiceOut *core, const char *fn_name)
- #define COREAUDIO_WRAPPER_FUNC(name, ret_type, args_decl, args) \
-     static ret_type glue(coreaudio_, name)args_decl             \
-     {                                                           \
--        coreaudioVoiceOut *core = (coreaudioVoiceOut *) hw;     \
-+        coreaudioVoiceOut *core = (coreaudioVoiceOut *)hw;      \
-         ret_type ret;                                           \
-                                                                 \
-         if (coreaudio_buf_lock(core, "coreaudio_" #name)) {         \
-@@ -312,13 +312,13 @@ static OSStatus audioDeviceIOProc(
-     coreaudioVoiceOut *core = hwptr;
-     size_t len;
- 
--    if (coreaudio_buf_lock (core, "audioDeviceIOProc")) {
-+    if (coreaudio_buf_lock(core, "audioDeviceIOProc")) {
-         inInputTime = 0;
-         return 0;
-     }
- 
-     if (inDevice != core->outputDeviceID) {
--        coreaudio_buf_unlock (core, "audioDeviceIOProc(old device)");
-+        coreaudio_buf_unlock(core, "audioDeviceIOProc(old device)");
-         return 0;
-     }
- 
-@@ -328,7 +328,7 @@ static OSStatus audioDeviceIOProc(
-     /* if there are not enough samples, set signal and return */
-     if (pending_frames < frameCount) {
-         inInputTime = 0;
--        coreaudio_buf_unlock (core, "audioDeviceIOProc(empty)");
-+        coreaudio_buf_unlock(core, "audioDeviceIOProc(empty)");
-         return 0;
-     }
- 
-@@ -348,7 +348,7 @@ static OSStatus audioDeviceIOProc(
-         out += write_len;
-     }
- 
--    coreaudio_buf_unlock (core, "audioDeviceIOProc");
-+    coreaudio_buf_unlock(core, "audioDeviceIOProc");
-     return 0;
- }
- 
-@@ -370,12 +370,12 @@ static OSStatus init_out_device(coreaudioVoiceOut *core)
- 
-     status = coreaudio_get_voice(&core->outputDeviceID);
-     if (status != kAudioHardwareNoError) {
--        coreaudio_playback_logerr (status,
--                                   "Could not get default output Device\n");
-+        coreaudio_playback_logerr(status,
-+                                  "Could not get default output Device\n");
-         return status;
-     }
-     if (core->outputDeviceID == kAudioDeviceUnknown) {
--        dolog ("Could not initialize playback - Unknown Audiodevice\n");
-+        dolog("Could not initialize playback - Unknown Audiodevice\n");
-         return status;
-     }
- 
-@@ -386,17 +386,17 @@ static OSStatus init_out_device(coreaudioVoiceOut *core)
-         return 0;
-     }
-     if (status != kAudioHardwareNoError) {
--        coreaudio_playback_logerr (status,
--                                    "Could not get device buffer frame range\n");
-+        coreaudio_playback_logerr(status,
-+                                  "Could not get device buffer frame range\n");
-         return status;
-     }
- 
-     if (frameRange.mMinimum > core->frameSizeSetting) {
-         core->audioDevicePropertyBufferFrameSize = frameRange.mMinimum;
--        dolog ("warning: Upsizing Buffer Frames to %f\n", frameRange.mMinimum);
-+        dolog("warning: Upsizing Buffer Frames to %f\n", frameRange.mMinimum);
-     } else if (frameRange.mMaximum < core->frameSizeSetting) {
-         core->audioDevicePropertyBufferFrameSize = frameRange.mMaximum;
--        dolog ("warning: Downsizing Buffer Frames to %f\n", frameRange.mMaximum);
-+        dolog("warning: Downsizing Buffer Frames to %f\n", frameRange.mMaximum);
-     } else {
-         core->audioDevicePropertyBufferFrameSize = core->frameSizeSetting;
-     }
-@@ -408,9 +408,9 @@ static OSStatus init_out_device(coreaudioVoiceOut *core)
-         return 0;
-     }
-     if (status != kAudioHardwareNoError) {
--        coreaudio_playback_logerr (status,
--                                    "Could not set device buffer frame size %" PRIu32 "\n",
--                                    (uint32_t)core->audioDevicePropertyBufferFrameSize);
-+        coreaudio_playback_logerr(status,
-+                                  "Could not set device buffer frame size %" PRIu32 "\n",
-+                                  (uint32_t)core->audioDevicePropertyBufferFrameSize);
-         return status;
-     }
- 
-@@ -421,8 +421,8 @@ static OSStatus init_out_device(coreaudioVoiceOut *core)
-         return 0;
-     }
-     if (status != kAudioHardwareNoError) {
--        coreaudio_playback_logerr (status,
--                                    "Could not get device buffer frame size\n");
-+        coreaudio_playback_logerr(status,
-+                                  "Could not get device buffer frame size\n");
-         return status;
-     }
-     core->hw.samples = core->bufferCount * core->audioDevicePropertyBufferFrameSize;
-@@ -434,9 +434,9 @@ static OSStatus init_out_device(coreaudioVoiceOut *core)
-         return 0;
-     }
-     if (status != kAudioHardwareNoError) {
--        coreaudio_playback_logerr (status,
--                                   "Could not set samplerate %lf\n",
--                                   streamBasicDescription.mSampleRate);
-+        coreaudio_playback_logerr(status,
-+                                  "Could not set samplerate %lf\n",
-+                                  streamBasicDescription.mSampleRate);
-         core->outputDeviceID = kAudioDeviceUnknown;
-         return status;
-     }
-@@ -460,7 +460,7 @@ static OSStatus init_out_device(coreaudioVoiceOut *core)
-         return 0;
-     }
-     if (status != kAudioHardwareNoError || core->ioprocid == NULL) {
--        coreaudio_playback_logerr (status, "Could not set IOProc\n");
-+        coreaudio_playback_logerr(status, "Could not set IOProc\n");
-         core->outputDeviceID = kAudioDeviceUnknown;
-         return status;
-     }
-@@ -518,7 +518,7 @@ static void update_device_playback_state(coreaudioVoiceOut *core)
-         if (!isrunning) {
-             status = AudioDeviceStart(core->outputDeviceID, core->ioprocid);
-             if (status != kAudioHardwareBadDeviceError && status != kAudioHardwareNoError) {
--                coreaudio_logerr (status, "Could not resume playback\n");
-+                coreaudio_logerr(status, "Could not resume playback\n");
-             }
-         }
-     } else {
-@@ -560,7 +560,7 @@ static int coreaudio_init_out(HWVoiceOut *hw, struct audsettings *as,
-                               void *drv_opaque)
- {
-     OSStatus status;
--    coreaudioVoiceOut *core = (coreaudioVoiceOut *) hw;
-+    coreaudioVoiceOut *core = (coreaudioVoiceOut *)hw;
-     int err;
-     Audiodev *dev = drv_opaque;
-     AudiodevCoreaudioPerDirectionOptions *cpdo = dev->u.coreaudio.out;
-@@ -569,14 +569,14 @@ static int coreaudio_init_out(HWVoiceOut *hw, struct audsettings *as,
-     /* create mutex */
-     err = pthread_mutex_init(&core->buf_mutex, NULL);
-     if (err) {
--        dolog("Could not create mutex\nReason: %s\n", strerror (err));
-+        dolog("Could not create mutex\nReason: %s\n", strerror(err));
-         return -1;
-     }
- 
-     obt_as = *as;
-     as = &obt_as;
-     as->fmt = AUDIO_FORMAT_F32;
--    audio_pcm_init_info (&hw->info, as);
-+    audio_pcm_init_info(&hw->info, as);
- 
-     core->frameSizeSetting = audio_buffer_frames(
-         qapi_AudiodevCoreaudioPerDirectionOptions_base(cpdo), as, 11610);
-@@ -587,8 +587,8 @@ static int coreaudio_init_out(HWVoiceOut *hw, struct audsettings *as,
-                                             &voice_addr, handle_voice_change,
-                                             core);
-     if (status != kAudioHardwareNoError) {
--        coreaudio_playback_logerr (status,
--                                   "Could not listen to voice property change\n");
-+        coreaudio_playback_logerr(status,
-+                                  "Could not listen to voice property change\n");
-         return -1;
-     }
- 
-@@ -612,7 +612,7 @@ static void coreaudio_fini_out (HWVoiceOut *hw)
- {
-     OSStatus status;
-     int err;
--    coreaudioVoiceOut *core = (coreaudioVoiceOut *) hw;
-+    coreaudioVoiceOut *core = (coreaudioVoiceOut *)hw;
- 
-     status = AudioObjectRemovePropertyListener(kAudioObjectSystemObject,
-                                                &voice_addr,
-@@ -627,13 +627,13 @@ static void coreaudio_fini_out (HWVoiceOut *hw)
-     /* destroy mutex */
-     err = pthread_mutex_destroy(&core->buf_mutex);
-     if (err) {
--        dolog("Could not destroy mutex\nReason: %s\n", strerror (err));
-+        dolog("Could not destroy mutex\nReason: %s\n", strerror(err));
-     }
- }
- 
- static void coreaudio_enable_out(HWVoiceOut *hw, bool enable)
- {
--    coreaudioVoiceOut *core = (coreaudioVoiceOut *) hw;
-+    coreaudioVoiceOut *core = (coreaudioVoiceOut *)hw;
- 
-     core->enabled = enable;
-     update_device_playback_state(core);
-@@ -644,7 +644,7 @@ static void coreaudio_enable_out(HWVoiceOut *hw, bool enable)
-     return dev;
- }
- 
--static void coreaudio_audio_fini (void *opaque)
-+static void coreaudio_audio_fini(void *opaque)
- {
- }
- 
-@@ -669,7 +669,7 @@ static void coreaudio_audio_fini (void *opaque)
-     .pcm_ops        = &coreaudio_pcm_ops,
-     .max_voices_out = 1,
-     .max_voices_in  = 0,
--    .voice_size_out = sizeof (coreaudioVoiceOut),
-+    .voice_size_out = sizeof(coreaudioVoiceOut),
-     .voice_size_in  = 0
- };
- 
--- 
-2.50.1 (Apple Git-155)
-
-
-From 332c41acbf190dd5556afb312dc22cb38a12d1f9 Mon Sep 17 00:00:00 2001
-From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
-Date: Wed, 24 Dec 2025 10:55:53 +0900
-Subject: coreaudio: Improve naming
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
-
-coreaudio had names that are not conforming to QEMU codding style.
-coreaudioVoiceOut also had some members that are prefixed with redundant
-words like "output" or "audio".
-Global names included "out" to tell they are specific to output devices,
-but this rule was not completely enforced.
-The frame size had three different names "frameSize", "bufferFrameSize",
-and "frameCount".
-
-Replace identifiers to fix these problems.
-
-Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
-Reviewed-by: Philippe Mathieu-Daudé <philmd@linaro.org>
----
- audio/coreaudio.m | 193 +++++++++++++++++++++++-----------------------
- 1 file changed, 98 insertions(+), 95 deletions(-)
-
-diff --git a/audio/coreaudio.m b/audio/coreaudio.m
-index 0c897c7398..aec95fdab8 100644
---- a/audio/coreaudio.m
-+++ b/audio/coreaudio.m
-@@ -33,37 +33,37 @@
- #define AUDIO_CAP "coreaudio"
- #include "audio_int.h"
- 
--typedef struct coreaudioVoiceOut {
-+typedef struct CoreaudioVoiceOut {
-     HWVoiceOut hw;
-     pthread_mutex_t buf_mutex;
--    AudioDeviceID outputDeviceID;
--    int frameSizeSetting;
--    uint32_t bufferCount;
--    UInt32 audioDevicePropertyBufferFrameSize;
-+    AudioDeviceID device_id;
-+    int frame_size_setting;
-+    uint32_t buffer_count;
-+    UInt32 device_frame_size;
-     AudioDeviceIOProcID ioprocid;
-     bool enabled;
--} coreaudioVoiceOut;
-+} CoreaudioVoiceOut;
- 
--static const AudioObjectPropertyAddress voice_addr = {
-+static const AudioObjectPropertyAddress voice_out_addr = {
-     kAudioHardwarePropertyDefaultOutputDevice,
-     kAudioObjectPropertyScopeGlobal,
-     kAudioObjectPropertyElementMain
- };
- 
--static OSStatus coreaudio_get_voice(AudioDeviceID *id)
-+static OSStatus coreaudio_get_voice_out(AudioDeviceID *id)
- {
-     UInt32 size = sizeof(*id);
- 
-     return AudioObjectGetPropertyData(kAudioObjectSystemObject,
--                                      &voice_addr,
-+                                      &voice_out_addr,
-                                       0,
-                                       NULL,
-                                       &size,
-                                       id);
- }
- 
--static OSStatus coreaudio_get_framesizerange(AudioDeviceID id,
--                                             AudioValueRange *framerange)
-+static OSStatus coreaudio_get_out_framesizerange(AudioDeviceID id,
-+                                                 AudioValueRange *framerange)
- {
-     UInt32 size = sizeof(*framerange);
-     AudioObjectPropertyAddress addr = {
-@@ -80,7 +80,7 @@ static OSStatus coreaudio_get_framesizerange(AudioDeviceID id,
-                                       framerange);
- }
- 
--static OSStatus coreaudio_get_framesize(AudioDeviceID id, UInt32 *framesize)
-+static OSStatus coreaudio_get_out_framesize(AudioDeviceID id, UInt32 *framesize)
- {
-     UInt32 size = sizeof(*framesize);
-     AudioObjectPropertyAddress addr = {
-@@ -97,7 +97,7 @@ static OSStatus coreaudio_get_framesize(AudioDeviceID id, UInt32 *framesize)
-                                       framesize);
- }
- 
--static OSStatus coreaudio_set_framesize(AudioDeviceID id, UInt32 *framesize)
-+static OSStatus coreaudio_set_out_framesize(AudioDeviceID id, UInt32 *framesize)
- {
-     UInt32 size = sizeof(*framesize);
-     AudioObjectPropertyAddress addr = {
-@@ -114,8 +114,8 @@ static OSStatus coreaudio_set_framesize(AudioDeviceID id, UInt32 *framesize)
-                                       framesize);
- }
- 
--static OSStatus coreaudio_set_streamformat(AudioDeviceID id,
--                                           AudioStreamBasicDescription *d)
-+static OSStatus coreaudio_set_out_streamformat(AudioDeviceID id,
-+                                               AudioStreamBasicDescription *d)
- {
-     UInt32 size = sizeof(*d);
-     AudioObjectPropertyAddress addr = {
-@@ -132,7 +132,7 @@ static OSStatus coreaudio_set_streamformat(AudioDeviceID id,
-                                       d);
- }
- 
--static OSStatus coreaudio_get_isrunning(AudioDeviceID id, UInt32 *result)
-+static OSStatus coreaudio_get_out_isrunning(AudioDeviceID id, UInt32 *result)
- {
-     UInt32 size = sizeof(*result);
-     AudioObjectPropertyAddress addr = {
-@@ -242,7 +242,8 @@ static void G_GNUC_PRINTF(3, 4) coreaudio_logerr2(
- #define coreaudio_playback_logerr(status, ...) \
-     coreaudio_logerr2(status, "playback", __VA_ARGS__)
- 
--static int coreaudio_buf_lock(coreaudioVoiceOut *core, const char *fn_name)
-+static int coreaudio_voice_out_buf_lock(CoreaudioVoiceOut *core,
-+                                        const char *fn_name)
- {
-     int err;
- 
-@@ -255,7 +256,8 @@ static int coreaudio_buf_lock(coreaudioVoiceOut *core, const char *fn_name)
-     return 0;
- }
- 
--static int coreaudio_buf_unlock(coreaudioVoiceOut *core, const char *fn_name)
-+static int coreaudio_voice_out_buf_unlock(CoreaudioVoiceOut *core,
-+                                          const char *fn_name)
- {
-     int err;
- 
-@@ -268,20 +270,20 @@ static int coreaudio_buf_unlock(coreaudioVoiceOut *core, const char *fn_name)
-     return 0;
- }
- 
--#define COREAUDIO_WRAPPER_FUNC(name, ret_type, args_decl, args) \
--    static ret_type glue(coreaudio_, name)args_decl             \
--    {                                                           \
--        coreaudioVoiceOut *core = (coreaudioVoiceOut *)hw;      \
--        ret_type ret;                                           \
--                                                                \
--        if (coreaudio_buf_lock(core, "coreaudio_" #name)) {         \
--            return 0;                                           \
--        }                                                       \
--                                                                \
--        ret = glue(audio_generic_, name)args;                   \
--                                                                \
--        coreaudio_buf_unlock(core, "coreaudio_" #name);             \
--        return ret;                                             \
-+#define COREAUDIO_WRAPPER_FUNC(name, ret_type, args_decl, args)       \
-+    static ret_type glue(coreaudio_, name)args_decl                   \
-+    {                                                                 \
-+        CoreaudioVoiceOut *core = (CoreaudioVoiceOut *)hw;            \
-+        ret_type ret;                                                 \
-+                                                                      \
-+        if (coreaudio_voice_out_buf_lock(core, "coreaudio_" #name)) { \
-+            return 0;                                                 \
-+        }                                                             \
-+                                                                      \
-+        ret = glue(audio_generic_, name)args;                         \
-+                                                                      \
-+        coreaudio_voice_out_buf_unlock(core, "coreaudio_" #name);     \
-+        return ret;                                                   \
-     }
- COREAUDIO_WRAPPER_FUNC(buffer_get_free, size_t, (HWVoiceOut *hw), (hw))
- COREAUDIO_WRAPPER_FUNC(get_buffer_out, void *, (HWVoiceOut *hw, size_t *size),
-@@ -297,7 +299,7 @@ static ret_type glue(coreaudio_, name)args_decl             \
-  * callback to feed audiooutput buffer. called without BQL.
-  * allowed to lock "buf_mutex", but disallowed to have any other locks.
-  */
--static OSStatus audioDeviceIOProc(
-+static OSStatus out_device_ioproc(
-     AudioDeviceID inDevice,
-     const AudioTimeStamp *inNow,
-     const AudioBufferList *inInputData,
-@@ -306,33 +308,33 @@ static OSStatus audioDeviceIOProc(
-     const AudioTimeStamp *inOutputTime,
-     void *hwptr)
- {
--    UInt32 frameCount, pending_frames;
-+    UInt32 frame_size, pending_frames;
-     void *out = outOutputData->mBuffers[0].mData;
-     HWVoiceOut *hw = hwptr;
--    coreaudioVoiceOut *core = hwptr;
-+    CoreaudioVoiceOut *core = hwptr;
-     size_t len;
- 
--    if (coreaudio_buf_lock(core, "audioDeviceIOProc")) {
-+    if (coreaudio_voice_out_buf_lock(core, "out_device_ioproc")) {
-         inInputTime = 0;
-         return 0;
-     }
- 
--    if (inDevice != core->outputDeviceID) {
--        coreaudio_buf_unlock(core, "audioDeviceIOProc(old device)");
-+    if (inDevice != core->device_id) {
-+        coreaudio_voice_out_buf_unlock(core, "out_device_ioproc(old device)");
-         return 0;
-     }
- 
--    frameCount = core->audioDevicePropertyBufferFrameSize;
-+    frame_size = core->device_frame_size;
-     pending_frames = hw->pending_emul / hw->info.bytes_per_frame;
- 
-     /* if there are not enough samples, set signal and return */
--    if (pending_frames < frameCount) {
-+    if (pending_frames < frame_size) {
-         inInputTime = 0;
--        coreaudio_buf_unlock(core, "audioDeviceIOProc(empty)");
-+        coreaudio_voice_out_buf_unlock(core, "out_device_ioproc(empty)");
-         return 0;
-     }
- 
--    len = frameCount * hw->info.bytes_per_frame;
-+    len = frame_size * hw->info.bytes_per_frame;
-     while (len) {
-         size_t write_len, start;
- 
-@@ -348,16 +350,16 @@ static OSStatus audioDeviceIOProc(
-         out += write_len;
-     }
- 
--    coreaudio_buf_unlock(core, "audioDeviceIOProc");
-+    coreaudio_voice_out_buf_unlock(core, "out_device_ioproc");
-     return 0;
- }
- 
--static OSStatus init_out_device(coreaudioVoiceOut *core)
-+static OSStatus init_out_device(CoreaudioVoiceOut *core)
- {
-     OSStatus status;
--    AudioValueRange frameRange;
-+    AudioValueRange framerange;
- 
--    AudioStreamBasicDescription streamBasicDescription = {
-+    AudioStreamBasicDescription stream_basic_description = {
-         .mBitsPerChannel = core->hw.info.bits,
-         .mBytesPerFrame = core->hw.info.bytes_per_frame,
-         .mBytesPerPacket = core->hw.info.bytes_per_frame,
-@@ -368,20 +370,20 @@ static OSStatus init_out_device(coreaudioVoiceOut *core)
-         .mSampleRate = core->hw.info.freq
-     };
- 
--    status = coreaudio_get_voice(&core->outputDeviceID);
-+    status = coreaudio_get_voice_out(&core->device_id);
-     if (status != kAudioHardwareNoError) {
-         coreaudio_playback_logerr(status,
-                                   "Could not get default output Device\n");
-         return status;
-     }
--    if (core->outputDeviceID == kAudioDeviceUnknown) {
-+    if (core->device_id == kAudioDeviceUnknown) {
-         dolog("Could not initialize playback - Unknown Audiodevice\n");
-         return status;
-     }
- 
-     /* get minimum and maximum buffer frame sizes */
--    status = coreaudio_get_framesizerange(core->outputDeviceID,
--                                          &frameRange);
-+    status = coreaudio_get_out_framesizerange(core->device_id,
-+                                              &framerange);
-     if (status == kAudioHardwareBadObjectError) {
-         return 0;
-     }
-@@ -391,32 +393,32 @@ static OSStatus init_out_device(coreaudioVoiceOut *core)
-         return status;
-     }
- 
--    if (frameRange.mMinimum > core->frameSizeSetting) {
--        core->audioDevicePropertyBufferFrameSize = frameRange.mMinimum;
--        dolog("warning: Upsizing Buffer Frames to %f\n", frameRange.mMinimum);
--    } else if (frameRange.mMaximum < core->frameSizeSetting) {
--        core->audioDevicePropertyBufferFrameSize = frameRange.mMaximum;
--        dolog("warning: Downsizing Buffer Frames to %f\n", frameRange.mMaximum);
-+    if (framerange.mMinimum > core->frame_size_setting) {
-+        core->device_frame_size = framerange.mMinimum;
-+        dolog("warning: Upsizing Buffer Frames to %f\n", framerange.mMinimum);
-+    } else if (framerange.mMaximum < core->frame_size_setting) {
-+        core->device_frame_size = framerange.mMaximum;
-+        dolog("warning: Downsizing Buffer Frames to %f\n", framerange.mMaximum);
-     } else {
--        core->audioDevicePropertyBufferFrameSize = core->frameSizeSetting;
-+        core->device_frame_size = core->frame_size_setting;
-     }
- 
-     /* set Buffer Frame Size */
--    status = coreaudio_set_framesize(core->outputDeviceID,
--                                     &core->audioDevicePropertyBufferFrameSize);
-+    status = coreaudio_set_out_framesize(core->device_id,
-+                                         &core->device_frame_size);
-     if (status == kAudioHardwareBadObjectError) {
-         return 0;
-     }
-     if (status != kAudioHardwareNoError) {
-         coreaudio_playback_logerr(status,
-                                   "Could not set device buffer frame size %" PRIu32 "\n",
--                                  (uint32_t)core->audioDevicePropertyBufferFrameSize);
-+                                  (uint32_t)core->device_frame_size);
-         return status;
-     }
- 
-     /* get Buffer Frame Size */
--    status = coreaudio_get_framesize(core->outputDeviceID,
--                                     &core->audioDevicePropertyBufferFrameSize);
-+    status = coreaudio_get_out_framesize(core->device_id,
-+                                         &core->device_frame_size);
-     if (status == kAudioHardwareBadObjectError) {
-         return 0;
-     }
-@@ -425,19 +427,19 @@ static OSStatus init_out_device(coreaudioVoiceOut *core)
-                                   "Could not get device buffer frame size\n");
-         return status;
-     }
--    core->hw.samples = core->bufferCount * core->audioDevicePropertyBufferFrameSize;
-+    core->hw.samples = core->buffer_count * core->device_frame_size;
- 
-     /* set Samplerate */
--    status = coreaudio_set_streamformat(core->outputDeviceID,
--                                        &streamBasicDescription);
-+    status = coreaudio_set_out_streamformat(core->device_id,
-+                                            &stream_basic_description);
-     if (status == kAudioHardwareBadObjectError) {
-         return 0;
-     }
-     if (status != kAudioHardwareNoError) {
-         coreaudio_playback_logerr(status,
-                                   "Could not set samplerate %lf\n",
--                                  streamBasicDescription.mSampleRate);
--        core->outputDeviceID = kAudioDeviceUnknown;
-+                                  stream_basic_description.mSampleRate);
-+        core->device_id = kAudioDeviceUnknown;
-         return status;
-     }
- 
-@@ -452,8 +454,8 @@ static OSStatus init_out_device(coreaudioVoiceOut *core)
-      * with the callers of AudioObjectGetPropertyData.
-      */
-     core->ioprocid = NULL;
--    status = AudioDeviceCreateIOProcID(core->outputDeviceID,
--                                       audioDeviceIOProc,
-+    status = AudioDeviceCreateIOProcID(core->device_id,
-+                                       out_device_ioproc,
-                                        &core->hw,
-                                        &core->ioprocid);
-     if (status == kAudioHardwareBadDeviceError) {
-@@ -461,20 +463,20 @@ static OSStatus init_out_device(coreaudioVoiceOut *core)
-     }
-     if (status != kAudioHardwareNoError || core->ioprocid == NULL) {
-         coreaudio_playback_logerr(status, "Could not set IOProc\n");
--        core->outputDeviceID = kAudioDeviceUnknown;
-+        core->device_id = kAudioDeviceUnknown;
-         return status;
-     }
- 
-     return 0;
- }
- 
--static void fini_out_device(coreaudioVoiceOut *core)
-+static void fini_out_device(CoreaudioVoiceOut *core)
- {
-     OSStatus status;
-     UInt32 isrunning;
- 
-     /* stop playback */
--    status = coreaudio_get_isrunning(core->outputDeviceID, &isrunning);
-+    status = coreaudio_get_out_isrunning(core->device_id, &isrunning);
-     if (status != kAudioHardwareBadObjectError) {
-         if (status != kAudioHardwareNoError) {
-             coreaudio_logerr(status,
-@@ -482,7 +484,7 @@ static void fini_out_device(coreaudioVoiceOut *core)
-         }
- 
-         if (isrunning) {
--            status = AudioDeviceStop(core->outputDeviceID, core->ioprocid);
-+            status = AudioDeviceStop(core->device_id, core->ioprocid);
-             if (status != kAudioHardwareBadDeviceError && status != kAudioHardwareNoError) {
-                 coreaudio_logerr(status, "Could not stop playback\n");
-             }
-@@ -490,20 +492,20 @@ static void fini_out_device(coreaudioVoiceOut *core)
-     }
- 
-     /* remove callback */
--    status = AudioDeviceDestroyIOProcID(core->outputDeviceID,
-+    status = AudioDeviceDestroyIOProcID(core->device_id,
-                                         core->ioprocid);
-     if (status != kAudioHardwareBadDeviceError && status != kAudioHardwareNoError) {
-         coreaudio_logerr(status, "Could not remove IOProc\n");
-     }
--    core->outputDeviceID = kAudioDeviceUnknown;
-+    core->device_id = kAudioDeviceUnknown;
- }
- 
--static void update_device_playback_state(coreaudioVoiceOut *core)
-+static void update_out_device_playback_state(CoreaudioVoiceOut *core)
- {
-     OSStatus status;
-     UInt32 isrunning;
- 
--    status = coreaudio_get_isrunning(core->outputDeviceID, &isrunning);
-+    status = coreaudio_get_out_isrunning(core->device_id, &isrunning);
-     if (status != kAudioHardwareNoError) {
-         if (status != kAudioHardwareBadObjectError) {
-             coreaudio_logerr(status,
-@@ -516,7 +518,7 @@ static void update_device_playback_state(coreaudioVoiceOut *core)
-     if (core->enabled) {
-         /* start playback */
-         if (!isrunning) {
--            status = AudioDeviceStart(core->outputDeviceID, core->ioprocid);
-+            status = AudioDeviceStart(core->device_id, core->ioprocid);
-             if (status != kAudioHardwareBadDeviceError && status != kAudioHardwareNoError) {
-                 coreaudio_logerr(status, "Could not resume playback\n");
-             }
-@@ -524,7 +526,7 @@ static void update_device_playback_state(coreaudioVoiceOut *core)
-     } else {
-         /* stop playback */
-         if (isrunning) {
--            status = AudioDeviceStop(core->outputDeviceID,
-+            status = AudioDeviceStop(core->device_id,
-                                      core->ioprocid);
-             if (status != kAudioHardwareBadDeviceError && status != kAudioHardwareNoError) {
-                 coreaudio_logerr(status, "Could not pause playback\n");
-@@ -534,22 +536,22 @@ static void update_device_playback_state(coreaudioVoiceOut *core)
- }
- 
- /* called without BQL. */
--static OSStatus handle_voice_change(
-+static OSStatus handle_voice_out_change(
-     AudioObjectID in_object_id,
-     UInt32 in_number_addresses,
-     const AudioObjectPropertyAddress *in_addresses,
-     void *in_client_data)
- {
--    coreaudioVoiceOut *core = in_client_data;
-+    CoreaudioVoiceOut *core = in_client_data;
- 
-     bql_lock();
- 
--    if (core->outputDeviceID) {
-+    if (core->device_id) {
-         fini_out_device(core);
-     }
- 
-     if (!init_out_device(core)) {
--        update_device_playback_state(core);
-+        update_out_device_playback_state(core);
-     }
- 
-     bql_unlock();
-@@ -560,7 +562,7 @@ static int coreaudio_init_out(HWVoiceOut *hw, struct audsettings *as,
-                               void *drv_opaque)
- {
-     OSStatus status;
--    coreaudioVoiceOut *core = (coreaudioVoiceOut *)hw;
-+    CoreaudioVoiceOut *core = (CoreaudioVoiceOut *)hw;
-     int err;
-     Audiodev *dev = drv_opaque;
-     AudiodevCoreaudioPerDirectionOptions *cpdo = dev->u.coreaudio.out;
-@@ -578,13 +580,14 @@ static int coreaudio_init_out(HWVoiceOut *hw, struct audsettings *as,
-     as->fmt = AUDIO_FORMAT_F32;
-     audio_pcm_init_info(&hw->info, as);
- 
--    core->frameSizeSetting = audio_buffer_frames(
-+    core->frame_size_setting = audio_buffer_frames(
-         qapi_AudiodevCoreaudioPerDirectionOptions_base(cpdo), as, 11610);
- 
--    core->bufferCount = cpdo->has_buffer_count ? cpdo->buffer_count : 4;
-+    core->buffer_count = cpdo->has_buffer_count ? cpdo->buffer_count : 4;
- 
-     status = AudioObjectAddPropertyListener(kAudioObjectSystemObject,
--                                            &voice_addr, handle_voice_change,
-+                                            &voice_out_addr,
-+                                            handle_voice_out_change,
-                                             core);
-     if (status != kAudioHardwareNoError) {
-         coreaudio_playback_logerr(status,
-@@ -594,8 +597,8 @@ static int coreaudio_init_out(HWVoiceOut *hw, struct audsettings *as,
- 
-     if (init_out_device(core)) {
-         status = AudioObjectRemovePropertyListener(kAudioObjectSystemObject,
--                                                   &voice_addr,
--                                                   handle_voice_change,
-+                                                   &voice_out_addr,
-+                                                   handle_voice_out_change,
-                                                    core);
-         if (status != kAudioHardwareNoError) {
-             coreaudio_playback_logerr(status,
-@@ -612,11 +615,11 @@ static void coreaudio_fini_out (HWVoiceOut *hw)
- {
-     OSStatus status;
-     int err;
--    coreaudioVoiceOut *core = (coreaudioVoiceOut *)hw;
-+    CoreaudioVoiceOut *core = (CoreaudioVoiceOut *)hw;
- 
-     status = AudioObjectRemovePropertyListener(kAudioObjectSystemObject,
--                                               &voice_addr,
--                                               handle_voice_change,
-+                                               &voice_out_addr,
-+                                               handle_voice_out_change,
-                                                core);
-     if (status != kAudioHardwareNoError) {
-         coreaudio_logerr(status, "Could not remove voice property change listener\n");
-@@ -633,10 +636,10 @@ static void coreaudio_fini_out (HWVoiceOut *hw)
- 
- static void coreaudio_enable_out(HWVoiceOut *hw, bool enable)
- {
--    coreaudioVoiceOut *core = (coreaudioVoiceOut *)hw;
-+    CoreaudioVoiceOut *core = (CoreaudioVoiceOut *)hw;
- 
-     core->enabled = enable;
--    update_device_playback_state(core);
-+    update_out_device_playback_state(core);
- }
- 
- static void *coreaudio_audio_init(Audiodev *dev, Error **errp)
-@@ -669,7 +672,7 @@ static void coreaudio_audio_fini(void *opaque)
-     .pcm_ops        = &coreaudio_pcm_ops,
-     .max_voices_out = 1,
-     .max_voices_in  = 0,
--    .voice_size_out = sizeof(coreaudioVoiceOut),
-+    .voice_size_out = sizeof(CoreaudioVoiceOut),
-     .voice_size_in  = 0
- };
- 
--- 
-2.50.1 (Apple Git-155)
-
-
-From a82e679491f22cb26ee0a47bb0cd60dfc8471226 Mon Sep 17 00:00:00 2001
-From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
-Date: Wed, 24 Dec 2025 10:56:13 +0900
-Subject: coreaudio: Commit the result of init in the end
-
-init_out_device may only commit some part of the result and leave the
-state inconsistent when it encounters a fatal error or the device gets
-unplugged during the operation, which is expressed by
-kAudioHardwareBadObjectError or kAudioHardwareBadDeviceError. Commit the
-result in the end of the function so that it commits the result iff it
-sees no fatal error and the device remains plugged.
-
-With this change, handle_voice_change can rely on core->outputDeviceID
-to know whether the output device is initialized after calling
-init_out_device.
-
-Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
----
- audio/coreaudio.m | 46 +++++++++++++++++++++++++---------------------
- 1 file changed, 25 insertions(+), 21 deletions(-)
-
-diff --git a/audio/coreaudio.m b/audio/coreaudio.m
-index aec95fdab8..b1a3216145 100644
---- a/audio/coreaudio.m
-+++ b/audio/coreaudio.m
-@@ -357,7 +357,10 @@ static OSStatus out_device_ioproc(
- static OSStatus init_out_device(CoreaudioVoiceOut *core)
- {
-     OSStatus status;
-+    AudioDeviceID device_id;
-     AudioValueRange framerange;
-+    UInt32 device_frame_size;
-+    AudioDeviceIOProcID ioprocid;
- 
-     AudioStreamBasicDescription stream_basic_description = {
-         .mBitsPerChannel = core->hw.info.bits,
-@@ -370,20 +373,19 @@ static OSStatus init_out_device(CoreaudioVoiceOut *core)
-         .mSampleRate = core->hw.info.freq
-     };
- 
--    status = coreaudio_get_voice_out(&core->device_id);
-+    status = coreaudio_get_voice_out(&device_id);
-     if (status != kAudioHardwareNoError) {
-         coreaudio_playback_logerr(status,
-                                   "Could not get default output Device\n");
-         return status;
-     }
--    if (core->device_id == kAudioDeviceUnknown) {
-+    if (device_id == kAudioDeviceUnknown) {
-         dolog("Could not initialize playback - Unknown Audiodevice\n");
-         return status;
-     }
- 
-     /* get minimum and maximum buffer frame sizes */
--    status = coreaudio_get_out_framesizerange(core->device_id,
--                                              &framerange);
-+    status = coreaudio_get_out_framesizerange(device_id, &framerange);
-     if (status == kAudioHardwareBadObjectError) {
-         return 0;
-     }
-@@ -394,31 +396,29 @@ static OSStatus init_out_device(CoreaudioVoiceOut *core)
-     }
- 
-     if (framerange.mMinimum > core->frame_size_setting) {
--        core->device_frame_size = framerange.mMinimum;
-+        device_frame_size = framerange.mMinimum;
-         dolog("warning: Upsizing Buffer Frames to %f\n", framerange.mMinimum);
-     } else if (framerange.mMaximum < core->frame_size_setting) {
--        core->device_frame_size = framerange.mMaximum;
-+        device_frame_size = framerange.mMaximum;
-         dolog("warning: Downsizing Buffer Frames to %f\n", framerange.mMaximum);
-     } else {
--        core->device_frame_size = core->frame_size_setting;
-+        device_frame_size = core->frame_size_setting;
-     }
- 
-     /* set Buffer Frame Size */
--    status = coreaudio_set_out_framesize(core->device_id,
--                                         &core->device_frame_size);
-+    status = coreaudio_set_out_framesize(device_id, &device_frame_size);
-     if (status == kAudioHardwareBadObjectError) {
-         return 0;
-     }
-     if (status != kAudioHardwareNoError) {
-         coreaudio_playback_logerr(status,
-                                   "Could not set device buffer frame size %" PRIu32 "\n",
--                                  (uint32_t)core->device_frame_size);
-+                                  (uint32_t)device_frame_size);
-         return status;
-     }
- 
-     /* get Buffer Frame Size */
--    status = coreaudio_get_out_framesize(core->device_id,
--                                         &core->device_frame_size);
-+    status = coreaudio_get_out_framesize(device_id, &device_frame_size);
-     if (status == kAudioHardwareBadObjectError) {
-         return 0;
-     }
-@@ -427,10 +427,9 @@ static OSStatus init_out_device(CoreaudioVoiceOut *core)
-                                   "Could not get device buffer frame size\n");
-         return status;
-     }
--    core->hw.samples = core->buffer_count * core->device_frame_size;
- 
-     /* set Samplerate */
--    status = coreaudio_set_out_streamformat(core->device_id,
-+    status = coreaudio_set_out_streamformat(device_id,
-                                             &stream_basic_description);
-     if (status == kAudioHardwareBadObjectError) {
-         return 0;
-@@ -439,7 +438,6 @@ static OSStatus init_out_device(CoreaudioVoiceOut *core)
-         coreaudio_playback_logerr(status,
-                                   "Could not set samplerate %lf\n",
-                                   stream_basic_description.mSampleRate);
--        core->device_id = kAudioDeviceUnknown;
-         return status;
-     }
- 
-@@ -453,20 +451,24 @@ static OSStatus init_out_device(CoreaudioVoiceOut *core)
-      * Therefore, the specified callback must be designed to avoid a deadlock
-      * with the callers of AudioObjectGetPropertyData.
-      */
--    core->ioprocid = NULL;
--    status = AudioDeviceCreateIOProcID(core->device_id,
-+    ioprocid = NULL;
-+    status = AudioDeviceCreateIOProcID(device_id,
-                                        out_device_ioproc,
-                                        &core->hw,
--                                       &core->ioprocid);
-+                                       &ioprocid);
-     if (status == kAudioHardwareBadDeviceError) {
-         return 0;
-     }
--    if (status != kAudioHardwareNoError || core->ioprocid == NULL) {
-+    if (status != kAudioHardwareNoError || ioprocid == NULL) {
-         coreaudio_playback_logerr(status, "Could not set IOProc\n");
--        core->device_id = kAudioDeviceUnknown;
-         return status;
-     }
- 
-+    core->device_id = device_id;
-+    core->device_frame_size = device_frame_size;
-+    core->hw.samples = core->buffer_count * core->device_frame_size;
-+    core->ioprocid = ioprocid;
-+
-     return 0;
- }
- 
-@@ -550,7 +552,9 @@ static OSStatus handle_voice_out_change(
-         fini_out_device(core);
-     }
- 
--    if (!init_out_device(core)) {
-+    init_out_device(core);
-+
-+    if (core->device_id) {
-         update_out_device_playback_state(core);
-     }
- 
--- 
-2.50.1 (Apple Git-155)
-
-
-From 05d4bc608b9130d293ede41e69bc2093654b4a70 Mon Sep 17 00:00:00 2001
-From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
-Date: Wed, 24 Dec 2025 10:56:20 +0900
-Subject: audio: Add functions to initialize buffers
-
-These functions can be used to re-initialize buffers when hardware
-parameters change due to device hotplug, for example.
-
-Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
-Reviewed-by: Phil Dennis-Jordan <phil@philjordan.eu>
-Reviewed-by: Christian Schoenebeck <qemu_oss@crudebyte.com>
----
- audio/audio.c     | 24 ++++++++++++++++++------
- audio/audio_int.h |  2 ++
- 2 files changed, 20 insertions(+), 6 deletions(-)
-
-diff --git a/audio/audio.c b/audio/audio.c
-index 86e674410a..d6522971f0 100644
---- a/audio/audio.c
-+++ b/audio/audio.c
-@@ -1410,12 +1410,18 @@ void audio_run(AudioBackend *s, const char *msg)
- #endif
- }
- 
-+void audio_generic_initialize_buffer_in(HWVoiceIn *hw)
-+{
-+    g_free(hw->buf_emul);
-+    hw->size_emul = hw->samples * hw->info.bytes_per_frame;
-+    hw->buf_emul = g_malloc(hw->size_emul);
-+    hw->pos_emul = hw->pending_emul = 0;
-+}
-+
- void audio_generic_run_buffer_in(HWVoiceIn *hw)
- {
-     if (unlikely(!hw->buf_emul)) {
--        hw->size_emul = hw->samples * hw->info.bytes_per_frame;
--        hw->buf_emul = g_malloc(hw->size_emul);
--        hw->pos_emul = hw->pending_emul = 0;
-+        audio_generic_initialize_buffer_in(hw);
-     }
- 
-     while (hw->pending_emul < hw->size_emul) {
-@@ -1449,6 +1455,14 @@ void audio_generic_put_buffer_in(HWVoiceIn *hw, void *buf, size_t size)
-     hw->pending_emul -= size;
- }
- 
-+void audio_generic_initialize_buffer_out(HWVoiceOut *hw)
-+{
-+    g_free(hw->buf_emul);
-+    hw->size_emul = hw->samples * hw->info.bytes_per_frame;
-+    hw->buf_emul = g_malloc(hw->size_emul);
-+    hw->pos_emul = hw->pending_emul = 0;
-+}
-+
- size_t audio_generic_buffer_get_free(HWVoiceOut *hw)
- {
-     if (hw->buf_emul) {
-@@ -1480,9 +1494,7 @@ void audio_generic_run_buffer_out(HWVoiceOut *hw)
- void *audio_generic_get_buffer_out(HWVoiceOut *hw, size_t *size)
- {
-     if (unlikely(!hw->buf_emul)) {
--        hw->size_emul = hw->samples * hw->info.bytes_per_frame;
--        hw->buf_emul = g_malloc(hw->size_emul);
--        hw->pos_emul = hw->pending_emul = 0;
-+        audio_generic_initialize_buffer_out(hw);
-     }
- 
-     *size = MIN(hw->size_emul - hw->pending_emul,
-diff --git a/audio/audio_int.h b/audio/audio_int.h
-index b2b8002477..bd3c23045e 100644
---- a/audio/audio_int.h
-+++ b/audio/audio_int.h
-@@ -212,9 +212,11 @@ static inline void *advance(void *p, size_t incr)
- int wav_start_capture(AudioBackend *state, CaptureState *s, const char *path,
-                       int freq, int bits, int nchannels);
- 
-+void audio_generic_initialize_buffer_in(HWVoiceIn *hw);
- void audio_generic_run_buffer_in(HWVoiceIn *hw);
- void *audio_generic_get_buffer_in(HWVoiceIn *hw, size_t *size);
- void audio_generic_put_buffer_in(HWVoiceIn *hw, void *buf, size_t size);
-+void audio_generic_initialize_buffer_out(HWVoiceOut *hw);
- void audio_generic_run_buffer_out(HWVoiceOut *hw);
- size_t audio_generic_buffer_get_free(HWVoiceOut *hw);
- void *audio_generic_get_buffer_out(HWVoiceOut *hw, size_t *size);
--- 
-2.50.1 (Apple Git-155)
-
-
-From 92cf6cad5172969dfe82f456b3cf419d9b43cd28 Mon Sep 17 00:00:00 2001
-From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
-Date: Wed, 24 Dec 2025 10:56:32 +0900
-Subject: coreaudio: Initialize the buffer for device change
-
-Reallocate buffers when the active device change as the required buffer
-size may differ.
-
-Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
-Reviewed-by: Phil Dennis-Jordan <phil@philjordan.eu>
-Acked-by: Christian Schoenebeck <qemu_oss@crudebyte.com>
----
- audio/coreaudio.m | 1 +
- 1 file changed, 1 insertion(+)
-
-diff --git a/audio/coreaudio.m b/audio/coreaudio.m
-index b1a3216145..f51a6a9597 100644
---- a/audio/coreaudio.m
-+++ b/audio/coreaudio.m
-@@ -467,6 +467,7 @@ static OSStatus init_out_device(CoreaudioVoiceOut *core)
-     core->device_id = device_id;
-     core->device_frame_size = device_frame_size;
-     core->hw.samples = core->buffer_count * core->device_frame_size;
-+    audio_generic_initialize_buffer_out(&core->hw);
-     core->ioprocid = ioprocid;
- 
-     return 0;
--- 
-2.50.1 (Apple Git-155)
-
-
-From 99018381038670f49078eb1613c1752637830852 Mon Sep 17 00:00:00 2001
-From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
-Date: Wed, 24 Dec 2025 10:56:45 +0900
-Subject: ui/cocoa: Use qemu_input_map_osx_to_qcode
-
-ui/cocoa used to have a conversion table from macOS keycode to QKeyCode.
-It is an unnecessary redundancy as ui/input-keymap.c already has such a
-table. Worse, I added an incorrect mapping of kVK_JIS_Eisu and
-kVK_JIS_Kana with commit 708b72557ff5 ("ui/cocoa: Support unique keys of
-JIS keyboards").
-
-According to the following documentations, the definitions in
-ui/keycodemapdb/keymaps.csv, which ui/input-keymap.c uses, are correct:
-https://developer.apple.com/documentation/uikit/uikeyboardhidusage/uikeyboardhidusagekeyboardlang1?language=objc
-https://developer.apple.com/documentation/uikit/uikeyboardhidusage/uikeyboardhidusagekeyboardlang2?language=objc
-https://docs.microsoft.com/en-us/windows-hardware/design/component-guidelines/keyboard-japan-ime
-
-Use qemu_input_map_osx_to_qcode to eliminate the redundancy and
-incorrect mappings.
-
-Fixes: 708b72557ff5 ("ui/cocoa: Support unique keys of JIS keyboards")
-Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
----
- ui/cocoa.m | 129 +----------------------------------------------------
- 1 file changed, 2 insertions(+), 127 deletions(-)
-
-diff --git a/ui/cocoa.m b/ui/cocoa.m
-index 23b7a736d7..2f982b523c 100644
---- a/ui/cocoa.m
-+++ b/ui/cocoa.m
-@@ -142,138 +142,13 @@ static bool bool_with_bql(BoolCodeBlock block)
-     return val;
- }
- 
--// Mac to QKeyCode conversion
--static const int mac_to_qkeycode_map[] = {
--    [kVK_ANSI_A] = Q_KEY_CODE_A,
--    [kVK_ANSI_B] = Q_KEY_CODE_B,
--    [kVK_ANSI_C] = Q_KEY_CODE_C,
--    [kVK_ANSI_D] = Q_KEY_CODE_D,
--    [kVK_ANSI_E] = Q_KEY_CODE_E,
--    [kVK_ANSI_F] = Q_KEY_CODE_F,
--    [kVK_ANSI_G] = Q_KEY_CODE_G,
--    [kVK_ANSI_H] = Q_KEY_CODE_H,
--    [kVK_ANSI_I] = Q_KEY_CODE_I,
--    [kVK_ANSI_J] = Q_KEY_CODE_J,
--    [kVK_ANSI_K] = Q_KEY_CODE_K,
--    [kVK_ANSI_L] = Q_KEY_CODE_L,
--    [kVK_ANSI_M] = Q_KEY_CODE_M,
--    [kVK_ANSI_N] = Q_KEY_CODE_N,
--    [kVK_ANSI_O] = Q_KEY_CODE_O,
--    [kVK_ANSI_P] = Q_KEY_CODE_P,
--    [kVK_ANSI_Q] = Q_KEY_CODE_Q,
--    [kVK_ANSI_R] = Q_KEY_CODE_R,
--    [kVK_ANSI_S] = Q_KEY_CODE_S,
--    [kVK_ANSI_T] = Q_KEY_CODE_T,
--    [kVK_ANSI_U] = Q_KEY_CODE_U,
--    [kVK_ANSI_V] = Q_KEY_CODE_V,
--    [kVK_ANSI_W] = Q_KEY_CODE_W,
--    [kVK_ANSI_X] = Q_KEY_CODE_X,
--    [kVK_ANSI_Y] = Q_KEY_CODE_Y,
--    [kVK_ANSI_Z] = Q_KEY_CODE_Z,
--
--    [kVK_ANSI_0] = Q_KEY_CODE_0,
--    [kVK_ANSI_1] = Q_KEY_CODE_1,
--    [kVK_ANSI_2] = Q_KEY_CODE_2,
--    [kVK_ANSI_3] = Q_KEY_CODE_3,
--    [kVK_ANSI_4] = Q_KEY_CODE_4,
--    [kVK_ANSI_5] = Q_KEY_CODE_5,
--    [kVK_ANSI_6] = Q_KEY_CODE_6,
--    [kVK_ANSI_7] = Q_KEY_CODE_7,
--    [kVK_ANSI_8] = Q_KEY_CODE_8,
--    [kVK_ANSI_9] = Q_KEY_CODE_9,
--
--    [kVK_ANSI_Grave] = Q_KEY_CODE_GRAVE_ACCENT,
--    [kVK_ANSI_Minus] = Q_KEY_CODE_MINUS,
--    [kVK_ANSI_Equal] = Q_KEY_CODE_EQUAL,
--    [kVK_Delete] = Q_KEY_CODE_BACKSPACE,
--    [kVK_CapsLock] = Q_KEY_CODE_CAPS_LOCK,
--    [kVK_Tab] = Q_KEY_CODE_TAB,
--    [kVK_Return] = Q_KEY_CODE_RET,
--    [kVK_ANSI_LeftBracket] = Q_KEY_CODE_BRACKET_LEFT,
--    [kVK_ANSI_RightBracket] = Q_KEY_CODE_BRACKET_RIGHT,
--    [kVK_ANSI_Backslash] = Q_KEY_CODE_BACKSLASH,
--    [kVK_ANSI_Semicolon] = Q_KEY_CODE_SEMICOLON,
--    [kVK_ANSI_Quote] = Q_KEY_CODE_APOSTROPHE,
--    [kVK_ANSI_Comma] = Q_KEY_CODE_COMMA,
--    [kVK_ANSI_Period] = Q_KEY_CODE_DOT,
--    [kVK_ANSI_Slash] = Q_KEY_CODE_SLASH,
--    [kVK_Space] = Q_KEY_CODE_SPC,
--
--    [kVK_ANSI_Keypad0] = Q_KEY_CODE_KP_0,
--    [kVK_ANSI_Keypad1] = Q_KEY_CODE_KP_1,
--    [kVK_ANSI_Keypad2] = Q_KEY_CODE_KP_2,
--    [kVK_ANSI_Keypad3] = Q_KEY_CODE_KP_3,
--    [kVK_ANSI_Keypad4] = Q_KEY_CODE_KP_4,
--    [kVK_ANSI_Keypad5] = Q_KEY_CODE_KP_5,
--    [kVK_ANSI_Keypad6] = Q_KEY_CODE_KP_6,
--    [kVK_ANSI_Keypad7] = Q_KEY_CODE_KP_7,
--    [kVK_ANSI_Keypad8] = Q_KEY_CODE_KP_8,
--    [kVK_ANSI_Keypad9] = Q_KEY_CODE_KP_9,
--    [kVK_ANSI_KeypadDecimal] = Q_KEY_CODE_KP_DECIMAL,
--    [kVK_ANSI_KeypadEnter] = Q_KEY_CODE_KP_ENTER,
--    [kVK_ANSI_KeypadPlus] = Q_KEY_CODE_KP_ADD,
--    [kVK_ANSI_KeypadMinus] = Q_KEY_CODE_KP_SUBTRACT,
--    [kVK_ANSI_KeypadMultiply] = Q_KEY_CODE_KP_MULTIPLY,
--    [kVK_ANSI_KeypadDivide] = Q_KEY_CODE_KP_DIVIDE,
--    [kVK_ANSI_KeypadEquals] = Q_KEY_CODE_KP_EQUALS,
--    [kVK_ANSI_KeypadClear] = Q_KEY_CODE_NUM_LOCK,
--
--    [kVK_UpArrow] = Q_KEY_CODE_UP,
--    [kVK_DownArrow] = Q_KEY_CODE_DOWN,
--    [kVK_LeftArrow] = Q_KEY_CODE_LEFT,
--    [kVK_RightArrow] = Q_KEY_CODE_RIGHT,
--
--    [kVK_Help] = Q_KEY_CODE_INSERT,
--    [kVK_Home] = Q_KEY_CODE_HOME,
--    [kVK_PageUp] = Q_KEY_CODE_PGUP,
--    [kVK_PageDown] = Q_KEY_CODE_PGDN,
--    [kVK_End] = Q_KEY_CODE_END,
--    [kVK_ForwardDelete] = Q_KEY_CODE_DELETE,
--
--    [kVK_Escape] = Q_KEY_CODE_ESC,
--
--    /* The Power key can't be used directly because the operating system uses
--     * it. This key can be emulated by using it in place of another key such as
--     * F1. Don't forget to disable the real key binding.
--     */
--    /* [kVK_F1] = Q_KEY_CODE_POWER, */
--
--    [kVK_F1] = Q_KEY_CODE_F1,
--    [kVK_F2] = Q_KEY_CODE_F2,
--    [kVK_F3] = Q_KEY_CODE_F3,
--    [kVK_F4] = Q_KEY_CODE_F4,
--    [kVK_F5] = Q_KEY_CODE_F5,
--    [kVK_F6] = Q_KEY_CODE_F6,
--    [kVK_F7] = Q_KEY_CODE_F7,
--    [kVK_F8] = Q_KEY_CODE_F8,
--    [kVK_F9] = Q_KEY_CODE_F9,
--    [kVK_F10] = Q_KEY_CODE_F10,
--    [kVK_F11] = Q_KEY_CODE_F11,
--    [kVK_F12] = Q_KEY_CODE_F12,
--    [kVK_F13] = Q_KEY_CODE_PRINT,
--    [kVK_F14] = Q_KEY_CODE_SCROLL_LOCK,
--    [kVK_F15] = Q_KEY_CODE_PAUSE,
--
--    // JIS keyboards only
--    [kVK_JIS_Yen] = Q_KEY_CODE_YEN,
--    [kVK_JIS_Underscore] = Q_KEY_CODE_RO,
--    [kVK_JIS_KeypadComma] = Q_KEY_CODE_KP_COMMA,
--    [kVK_JIS_Eisu] = Q_KEY_CODE_MUHENKAN,
--    [kVK_JIS_Kana] = Q_KEY_CODE_HENKAN,
--
--    /*
--     * The eject and volume keys can't be used here because they are handled at
--     * a lower level than what an Application can see.
--     */
--};
--
- static int cocoa_keycode_to_qemu(int keycode)
- {
--    if (ARRAY_SIZE(mac_to_qkeycode_map) <= keycode) {
-+    if (qemu_input_map_osx_to_qcode_len <= keycode) {
-         error_report("(cocoa) warning unknown keycode 0x%x", keycode);
-         return 0;
-     }
--    return mac_to_qkeycode_map[keycode];
-+    return qemu_input_map_osx_to_qcode[keycode];
- }
- 
- /* Displays an alert dialog box with the specified message */
--- 
-2.50.1 (Apple Git-155)
-
-
-From a4afdae1877f875e63a24514f9baa2a6d742591e Mon Sep 17 00:00:00 2001
-From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
-Date: Wed, 24 Dec 2025 10:56:56 +0900
-Subject: ui/cocoa: Do not automatically zoom for HiDPI
-
-Cocoa automatically zooms for a HiDPI display like Retina and makes
-the display blurry. Revert the automatic zooming.
-
-Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
----
- ui/cocoa.m | 9 ++++++---
- 1 file changed, 6 insertions(+), 3 deletions(-)
-
-diff --git a/ui/cocoa.m b/ui/cocoa.m
-index 2f982b523c..6ca91a1193 100644
---- a/ui/cocoa.m
-+++ b/ui/cocoa.m
-@@ -502,7 +502,10 @@ - (void) resizeWindow
-     [[self window] setContentAspectRatio:NSMakeSize(screen.width, screen.height)];
- 
-     if (!([[self window] styleMask] & NSWindowStyleMaskResizable)) {
--        [[self window] setContentSize:NSMakeSize(screen.width, screen.height)];
-+        CGFloat width = screen.width / [[self window] backingScaleFactor];
-+        CGFloat height = screen.height / [[self window] backingScaleFactor];
-+
-+        [[self window] setContentSize:NSMakeSize(width, height)];
-         [[self window] center];
-     } else if ([[self window] styleMask] & NSWindowStyleMaskFullScreen) {
-         [[self window] setContentSize:[self fixAspectRatio:[self screenSafeAreaSize]]];
-@@ -560,8 +563,8 @@ - (void) updateUIInfoLocked
- 
-     info.xoff = 0;
-     info.yoff = 0;
--    info.width = frameSize.width;
--    info.height = frameSize.height;
-+    info.width = frameSize.width * [[self window] backingScaleFactor];
-+    info.height = frameSize.height * [[self window] backingScaleFactor];
- 
-     dpy_set_ui_info(dcl.con, &info, TRUE);
- }
--- 
-2.50.1 (Apple Git-155)
-
-
 From a03612c3e0d4bd707f429357be34039cf753c3d4 Mon Sep 17 00:00:00 2001
 From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
 Date: Wed, 24 Dec 2025 10:57:01 +0900
-Subject: Support Virgil 3D renderer on macOS
+Subject: [PATCH] Support Virgil 3D renderer on macOS
 
 Virgil 3D renderer will be available with ui/cocoa on macOS.
 
@@ -1401,7 +33,7 @@ Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
  20 files changed, 773 insertions(+), 305 deletions(-)
 
 diff --git a/include/ui/console.h b/include/ui/console.h
-index 98feaa58bd..2731895a1a 100644
+index 98feaa58bdd1a..2731895a1a696 100644
 --- a/include/ui/console.h
 +++ b/include/ui/console.h
 @@ -420,18 +420,15 @@ int qemu_invalidate_text_consoles(void);
@@ -1427,7 +59,7 @@ index 98feaa58bd..2731895a1a 100644
                                 DisplaySurface *surface,
                                 int ww, int wh);
 diff --git a/include/ui/egl-helpers.h b/include/ui/egl-helpers.h
-index acf993fcf5..d606172549 100644
+index acf993fcf52f3..d6061725498a9 100644
 --- a/include/ui/egl-helpers.h
 +++ b/include/ui/egl-helpers.h
 @@ -59,7 +59,9 @@ void egl_dmabuf_create_fence(QemuDmaBuf *dmabuf);
@@ -1442,7 +74,7 @@ index acf993fcf5..d606172549 100644
  #if defined(CONFIG_X11) || defined(CONFIG_GBM)
  
 diff --git a/include/ui/gtk.h b/include/ui/gtk.h
-index 3e6ce3cb48..044cc9b99d 100644
+index 3e6ce3cb48c7e..044cc9b99d206 100644
 --- a/include/ui/gtk.h
 +++ b/include/ui/gtk.h
 @@ -21,7 +21,7 @@
@@ -1464,7 +96,7 @@ index 3e6ce3cb48..044cc9b99d 100644
      EGLContext ectx;
      EGLSurface esurface;
 diff --git a/include/ui/sdl2.h b/include/ui/sdl2.h
-index dbe6e3d973..1a5dab22d0 100644
+index dbe6e3d9739b9..1a5dab22d0965 100644
 --- a/include/ui/sdl2.h
 +++ b/include/ui/sdl2.h
 @@ -22,7 +22,7 @@
@@ -1486,7 +118,7 @@ index dbe6e3d973..1a5dab22d0 100644
      egl_fb guest_fb;
      egl_fb win_fb;
 diff --git a/include/ui/spice-display.h b/include/ui/spice-display.h
-index 690ece7380..02cf113dce 100644
+index 690ece73801e3..02cf113dcebe0 100644
 --- a/include/ui/spice-display.h
 +++ b/include/ui/spice-display.h
 @@ -27,7 +27,7 @@
@@ -1499,7 +131,7 @@ index 690ece7380..02cf113dce 100644
  #  include "ui/egl-helpers.h"
  #  include "ui/egl-context.h"
 diff --git a/meson.build b/meson.build
-index d9293294d8..4ce0303205 100644
+index d9293294d8e76..4ce0303205d27 100644
 --- a/meson.build
 +++ b/meson.build
 @@ -1216,7 +1216,7 @@ if get_option('attr').allowed()
@@ -1539,7 +171,7 @@ index d9293294d8..4ce0303205 100644
  config_host_data.set('CONFIG_PLUGIN', get_option('plugins'))
  config_host_data.set('CONFIG_RBD', rbd.found())
 diff --git a/qapi/ui.json b/qapi/ui.json
-index e3da77632a..e75b568819 100644
+index e3da77632a834..e75b568819fce 100644
 --- a/qapi/ui.json
 +++ b/qapi/ui.json
 @@ -1521,7 +1521,8 @@
@@ -1562,7 +194,7 @@ index e3da77632a..e75b568819 100644
        'sdl': { 'type': 'DisplaySDL', 'if': 'CONFIG_SDL' }
    }
 diff --git a/qemu-options.hx b/qemu-options.hx
-index fca2b7bc74..63983de7d2 100644
+index fca2b7bc74f96..63983de7d26e8 100644
 --- a/qemu-options.hx
 +++ b/qemu-options.hx
 @@ -2146,7 +2146,7 @@ DEF("display", HAS_ARG, QEMU_OPTION_display,
@@ -1575,7 +207,7 @@ index fca2b7bc74..63983de7d2 100644
  #endif
  #if defined(CONFIG_DBUS_DISPLAY)
 diff --git a/ui/cocoa.m b/ui/cocoa.m
-index 6ca91a1193..1a6751adf0 100644
+index 6ca91a1193e0e..1a6751adf078c 100644
 --- a/ui/cocoa.m
 +++ b/ui/cocoa.m
 @@ -22,9 +22,12 @@
@@ -2598,7 +1230,7 @@ index 6ca91a1193..1a6751adf0 100644
 +module_dep("ui-opengl");
 +#endif
 diff --git a/ui/console-gl.c b/ui/console-gl.c
-index 403fc36fbd..5eb3c8a178 100644
+index 403fc36fbdf23..5eb3c8a17858e 100644
 --- a/ui/console-gl.c
 +++ b/ui/console-gl.c
 @@ -44,10 +44,8 @@ bool console_gl_check_format(DisplayChangeListener *dcl,
@@ -2613,7 +1245,7 @@ index 403fc36fbd..5eb3c8a178 100644
      assert(QEMU_IS_ALIGNED(surface_stride(surface), surface_bytes_per_pixel(surface)));
  
      if (surface->texture) {
-@@ -144,14 +142,11 @@ cleanup_mem:
+@@ -144,14 +142,11 @@ bool surface_gl_create_texture_from_fd(DisplaySurface *surface,
      return false;
  }
  
@@ -2640,7 +1272,7 @@ index 403fc36fbd..5eb3c8a178 100644
      if (!surface || !surface->texture) {
          return;
 diff --git a/ui/console.c b/ui/console.c
-index 2d00828c53..4c8d9f1c61 100644
+index 2d00828c5382e..4c8d9f1c617af 100644
 --- a/ui/console.c
 +++ b/ui/console.c
 @@ -1487,12 +1487,7 @@ void qemu_console_resize(QemuConsole *s, int width, int height)
@@ -2658,7 +1290,7 @@ index 2d00828c53..4c8d9f1c61 100644
  
  PixelFormat qemu_default_pixelformat(int bpp)
 diff --git a/ui/dbus.c b/ui/dbus.c
-index d2dff33258..975bc6a0c9 100644
+index d2dff332585e3..975bc6a0c9413 100644
 --- a/ui/dbus.c
 +++ b/ui/dbus.c
 @@ -63,20 +63,20 @@ dbus_is_compatible_dcl(DisplayGLCtx *dgc,
@@ -2706,7 +1338,7 @@ index d2dff33258..975bc6a0c9 100644
  }
  
 diff --git a/ui/egl-helpers.c b/ui/egl-helpers.c
-index e3f2872cc1..8966221419 100644
+index e3f2872cc14be..89662214196ab 100644
 --- a/ui/egl-helpers.c
 +++ b/ui/egl-helpers.c
 @@ -25,6 +25,12 @@
@@ -2927,7 +1559,7 @@ index e3f2872cc1..8966221419 100644
  }
  #endif
 diff --git a/ui/gtk-egl.c b/ui/gtk-egl.c
-index ae9239999c..8844eca0e8 100644
+index ae9239999cdb6..8844eca0e8a81 100644
 --- a/ui/gtk-egl.c
 +++ b/ui/gtk-egl.c
 @@ -36,8 +36,8 @@ static void gtk_egl_set_scanout_mode(VirtualConsole *vc, bool scanout)
@@ -2991,7 +1623,7 @@ index ae9239999c..8844eca0e8 100644
  
      if (resized) {
 diff --git a/ui/gtk-gl-area.c b/ui/gtk-gl-area.c
-index cd86022d26..0f00c4ac9a 100644
+index cd86022d264a2..0f00c4ac9a8af 100644
 --- a/ui/gtk-gl-area.c
 +++ b/ui/gtk-gl-area.c
 @@ -29,8 +29,8 @@ static void gtk_gl_area_set_scanout_mode(VirtualConsole *vc, bool scanout)
@@ -3041,7 +1673,7 @@ index cd86022d26..0f00c4ac9a 100644
      vc->gfx.ds = surface;
  
 diff --git a/ui/gtk.c b/ui/gtk.c
-index 48571bedbf..559c2ae12c 100644
+index 48571bedbf5a7..559c2ae12ca43 100644
 --- a/ui/gtk.c
 +++ b/ui/gtk.c
 @@ -342,7 +342,7 @@ static void gd_update_full_redraw(VirtualConsole *vc)
@@ -3152,7 +1784,7 @@ index 48571bedbf..559c2ae12c 100644
  module_dep("ui-opengl");
  #endif
 diff --git a/ui/meson.build b/ui/meson.build
-index 6371422c46..42a0d25325 100644
+index 6371422c46046..42a0d25325b3b 100644
 --- a/ui/meson.build
 +++ b/ui/meson.build
 @@ -58,15 +58,16 @@ system_ss.add(opengl)
@@ -3197,7 +1829,7 @@ index 6371422c46..42a0d25325 100644
    ui_modules += {'sdl' : sdl_ss}
  endif
 diff --git a/ui/sdl2-gl.c b/ui/sdl2-gl.c
-index 3be17d1079..ef091b471d 100644
+index 3be17d1079afa..ef091b471df87 100644
 --- a/ui/sdl2-gl.c
 +++ b/ui/sdl2-gl.c
 @@ -40,8 +40,8 @@ static void sdl2_set_scanout_mode(struct sdl2_console *scon, bool scanout)
@@ -3239,7 +1871,7 @@ index 3be17d1079..ef091b471d 100644
  
  void sdl2_gl_refresh(DisplayChangeListener *dcl)
 diff --git a/ui/sdl2.c b/ui/sdl2.c
-index 032dc14bc3..1b124041d7 100644
+index 032dc14bc3988..1b124041d7612 100644
 --- a/ui/sdl2.c
 +++ b/ui/sdl2.c
 @@ -93,7 +93,7 @@ void sdl2_window_create(struct sdl2_console *scon)
@@ -3296,7 +1928,7 @@ index 032dc14bc3..1b124041d7 100644
  module_dep("ui-opengl");
  #endif
 diff --git a/ui/spice-display.c b/ui/spice-display.c
-index db71e866f8..c076450d86 100644
+index db71e866f89ff..c076450d862bb 100644
 --- a/ui/spice-display.c
 +++ b/ui/spice-display.c
 @@ -889,7 +889,7 @@ static void spice_gl_update(DisplayChangeListener *dcl,
@@ -3356,6 +1988,214 @@ index db71e866f8..c076450d86 100644
              return;
          }
  
+From 99018381038670f49078eb1613c1752637830852 Mon Sep 17 00:00:00 2001
+From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
+Date: Wed, 24 Dec 2025 10:56:45 +0900
+Subject: ui/cocoa: Use qemu_input_map_osx_to_qcode
+
+ui/cocoa used to have a conversion table from macOS keycode to QKeyCode.
+It is an unnecessary redundancy as ui/input-keymap.c already has such a
+table. Worse, I added an incorrect mapping of kVK_JIS_Eisu and
+kVK_JIS_Kana with commit 708b72557ff5 ("ui/cocoa: Support unique keys of
+JIS keyboards").
+
+According to the following documentations, the definitions in
+ui/keycodemapdb/keymaps.csv, which ui/input-keymap.c uses, are correct:
+https://developer.apple.com/documentation/uikit/uikeyboardhidusage/uikeyboardhidusagekeyboardlang1?language=objc
+https://developer.apple.com/documentation/uikit/uikeyboardhidusage/uikeyboardhidusagekeyboardlang2?language=objc
+https://docs.microsoft.com/en-us/windows-hardware/design/component-guidelines/keyboard-japan-ime
+
+Use qemu_input_map_osx_to_qcode to eliminate the redundancy and
+incorrect mappings.
+
+Fixes: 708b72557ff5 ("ui/cocoa: Support unique keys of JIS keyboards")
+Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
+
+diff --git a/ui/cocoa.m b/ui/cocoa.m
+index 23b7a736d7..2f982b523c 100644
+--- a/ui/cocoa.m
++++ b/ui/cocoa.m
+@@ -142,138 +142,13 @@ static bool bool_with_bql(BoolCodeBlock block)
+     return val;
+ }
+ 
+-// Mac to QKeyCode conversion
+-static const int mac_to_qkeycode_map[] = {
+-    [kVK_ANSI_A] = Q_KEY_CODE_A,
+-    [kVK_ANSI_B] = Q_KEY_CODE_B,
+-    [kVK_ANSI_C] = Q_KEY_CODE_C,
+-    [kVK_ANSI_D] = Q_KEY_CODE_D,
+-    [kVK_ANSI_E] = Q_KEY_CODE_E,
+-    [kVK_ANSI_F] = Q_KEY_CODE_F,
+-    [kVK_ANSI_G] = Q_KEY_CODE_G,
+-    [kVK_ANSI_H] = Q_KEY_CODE_H,
+-    [kVK_ANSI_I] = Q_KEY_CODE_I,
+-    [kVK_ANSI_J] = Q_KEY_CODE_J,
+-    [kVK_ANSI_K] = Q_KEY_CODE_K,
+-    [kVK_ANSI_L] = Q_KEY_CODE_L,
+-    [kVK_ANSI_M] = Q_KEY_CODE_M,
+-    [kVK_ANSI_N] = Q_KEY_CODE_N,
+-    [kVK_ANSI_O] = Q_KEY_CODE_O,
+-    [kVK_ANSI_P] = Q_KEY_CODE_P,
+-    [kVK_ANSI_Q] = Q_KEY_CODE_Q,
+-    [kVK_ANSI_R] = Q_KEY_CODE_R,
+-    [kVK_ANSI_S] = Q_KEY_CODE_S,
+-    [kVK_ANSI_T] = Q_KEY_CODE_T,
+-    [kVK_ANSI_U] = Q_KEY_CODE_U,
+-    [kVK_ANSI_V] = Q_KEY_CODE_V,
+-    [kVK_ANSI_W] = Q_KEY_CODE_W,
+-    [kVK_ANSI_X] = Q_KEY_CODE_X,
+-    [kVK_ANSI_Y] = Q_KEY_CODE_Y,
+-    [kVK_ANSI_Z] = Q_KEY_CODE_Z,
+-
+-    [kVK_ANSI_0] = Q_KEY_CODE_0,
+-    [kVK_ANSI_1] = Q_KEY_CODE_1,
+-    [kVK_ANSI_2] = Q_KEY_CODE_2,
+-    [kVK_ANSI_3] = Q_KEY_CODE_3,
+-    [kVK_ANSI_4] = Q_KEY_CODE_4,
+-    [kVK_ANSI_5] = Q_KEY_CODE_5,
+-    [kVK_ANSI_6] = Q_KEY_CODE_6,
+-    [kVK_ANSI_7] = Q_KEY_CODE_7,
+-    [kVK_ANSI_8] = Q_KEY_CODE_8,
+-    [kVK_ANSI_9] = Q_KEY_CODE_9,
+-
+-    [kVK_ANSI_Grave] = Q_KEY_CODE_GRAVE_ACCENT,
+-    [kVK_ANSI_Minus] = Q_KEY_CODE_MINUS,
+-    [kVK_ANSI_Equal] = Q_KEY_CODE_EQUAL,
+-    [kVK_Delete] = Q_KEY_CODE_BACKSPACE,
+-    [kVK_CapsLock] = Q_KEY_CODE_CAPS_LOCK,
+-    [kVK_Tab] = Q_KEY_CODE_TAB,
+-    [kVK_Return] = Q_KEY_CODE_RET,
+-    [kVK_ANSI_LeftBracket] = Q_KEY_CODE_BRACKET_LEFT,
+-    [kVK_ANSI_RightBracket] = Q_KEY_CODE_BRACKET_RIGHT,
+-    [kVK_ANSI_Backslash] = Q_KEY_CODE_BACKSLASH,
+-    [kVK_ANSI_Semicolon] = Q_KEY_CODE_SEMICOLON,
+-    [kVK_ANSI_Quote] = Q_KEY_CODE_APOSTROPHE,
+-    [kVK_ANSI_Comma] = Q_KEY_CODE_COMMA,
+-    [kVK_ANSI_Period] = Q_KEY_CODE_DOT,
+-    [kVK_ANSI_Slash] = Q_KEY_CODE_SLASH,
+-    [kVK_Space] = Q_KEY_CODE_SPC,
+-
+-    [kVK_ANSI_Keypad0] = Q_KEY_CODE_KP_0,
+-    [kVK_ANSI_Keypad1] = Q_KEY_CODE_KP_1,
+-    [kVK_ANSI_Keypad2] = Q_KEY_CODE_KP_2,
+-    [kVK_ANSI_Keypad3] = Q_KEY_CODE_KP_3,
+-    [kVK_ANSI_Keypad4] = Q_KEY_CODE_KP_4,
+-    [kVK_ANSI_Keypad5] = Q_KEY_CODE_KP_5,
+-    [kVK_ANSI_Keypad6] = Q_KEY_CODE_KP_6,
+-    [kVK_ANSI_Keypad7] = Q_KEY_CODE_KP_7,
+-    [kVK_ANSI_Keypad8] = Q_KEY_CODE_KP_8,
+-    [kVK_ANSI_Keypad9] = Q_KEY_CODE_KP_9,
+-    [kVK_ANSI_KeypadDecimal] = Q_KEY_CODE_KP_DECIMAL,
+-    [kVK_ANSI_KeypadEnter] = Q_KEY_CODE_KP_ENTER,
+-    [kVK_ANSI_KeypadPlus] = Q_KEY_CODE_KP_ADD,
+-    [kVK_ANSI_KeypadMinus] = Q_KEY_CODE_KP_SUBTRACT,
+-    [kVK_ANSI_KeypadMultiply] = Q_KEY_CODE_KP_MULTIPLY,
+-    [kVK_ANSI_KeypadDivide] = Q_KEY_CODE_KP_DIVIDE,
+-    [kVK_ANSI_KeypadEquals] = Q_KEY_CODE_KP_EQUALS,
+-    [kVK_ANSI_KeypadClear] = Q_KEY_CODE_NUM_LOCK,
+-
+-    [kVK_UpArrow] = Q_KEY_CODE_UP,
+-    [kVK_DownArrow] = Q_KEY_CODE_DOWN,
+-    [kVK_LeftArrow] = Q_KEY_CODE_LEFT,
+-    [kVK_RightArrow] = Q_KEY_CODE_RIGHT,
+-
+-    [kVK_Help] = Q_KEY_CODE_INSERT,
+-    [kVK_Home] = Q_KEY_CODE_HOME,
+-    [kVK_PageUp] = Q_KEY_CODE_PGUP,
+-    [kVK_PageDown] = Q_KEY_CODE_PGDN,
+-    [kVK_End] = Q_KEY_CODE_END,
+-    [kVK_ForwardDelete] = Q_KEY_CODE_DELETE,
+-
+-    [kVK_Escape] = Q_KEY_CODE_ESC,
+-
+-    /* The Power key can't be used directly because the operating system uses
+-     * it. This key can be emulated by using it in place of another key such as
+-     * F1. Don't forget to disable the real key binding.
+-     */
+-    /* [kVK_F1] = Q_KEY_CODE_POWER, */
+-
+-    [kVK_F1] = Q_KEY_CODE_F1,
+-    [kVK_F2] = Q_KEY_CODE_F2,
+-    [kVK_F3] = Q_KEY_CODE_F3,
+-    [kVK_F4] = Q_KEY_CODE_F4,
+-    [kVK_F5] = Q_KEY_CODE_F5,
+-    [kVK_F6] = Q_KEY_CODE_F6,
+-    [kVK_F7] = Q_KEY_CODE_F7,
+-    [kVK_F8] = Q_KEY_CODE_F8,
+-    [kVK_F9] = Q_KEY_CODE_F9,
+-    [kVK_F10] = Q_KEY_CODE_F10,
+-    [kVK_F11] = Q_KEY_CODE_F11,
+-    [kVK_F12] = Q_KEY_CODE_F12,
+-    [kVK_F13] = Q_KEY_CODE_PRINT,
+-    [kVK_F14] = Q_KEY_CODE_SCROLL_LOCK,
+-    [kVK_F15] = Q_KEY_CODE_PAUSE,
+-
+-    // JIS keyboards only
+-    [kVK_JIS_Yen] = Q_KEY_CODE_YEN,
+-    [kVK_JIS_Underscore] = Q_KEY_CODE_RO,
+-    [kVK_JIS_KeypadComma] = Q_KEY_CODE_KP_COMMA,
+-    [kVK_JIS_Eisu] = Q_KEY_CODE_MUHENKAN,
+-    [kVK_JIS_Kana] = Q_KEY_CODE_HENKAN,
+-
+-    /*
+-     * The eject and volume keys can't be used here because they are handled at
+-     * a lower level than what an Application can see.
+-     */
+-};
+-
+ static int cocoa_keycode_to_qemu(int keycode)
+ {
+-    if (ARRAY_SIZE(mac_to_qkeycode_map) <= keycode) {
++    if (qemu_input_map_osx_to_qcode_len <= keycode) {
+         error_report("(cocoa) warning unknown keycode 0x%x", keycode);
+         return 0;
+     }
+-    return mac_to_qkeycode_map[keycode];
++    return qemu_input_map_osx_to_qcode[keycode];
+ }
+ 
+ /* Displays an alert dialog box with the specified message */
+-- 
+2.50.1 (Apple Git-155)
+
+From a4afdae1877f875e63a24514f9baa2a6d742591e Mon Sep 17 00:00:00 2001
+From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
+Date: Wed, 24 Dec 2025 10:56:56 +0900
+Subject: ui/cocoa: Do not automatically zoom for HiDPI
+
+Cocoa automatically zooms for a HiDPI display like Retina and makes
+the display blurry. Revert the automatic zooming.
+
+Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
+
+diff --git a/ui/cocoa.m b/ui/cocoa.m
+index 2f982b523c..6ca91a1193 100644
+--- a/ui/cocoa.m
++++ b/ui/cocoa.m
+@@ -502,7 +502,10 @@ - (void) resizeWindow
+     [[self window] setContentAspectRatio:NSMakeSize(screen.width, screen.height)];
+ 
+     if (!([[self window] styleMask] & NSWindowStyleMaskResizable)) {
+-        [[self window] setContentSize:NSMakeSize(screen.width, screen.height)];
++        CGFloat width = screen.width / [[self window] backingScaleFactor];
++        CGFloat height = screen.height / [[self window] backingScaleFactor];
++
++        [[self window] setContentSize:NSMakeSize(width, height)];
+         [[self window] center];
+     } else if ([[self window] styleMask] & NSWindowStyleMaskFullScreen) {
+         [[self window] setContentSize:[self fixAspectRatio:[self screenSafeAreaSize]]];
+@@ -560,8 +563,8 @@ - (void) updateUIInfoLocked
+ 
+     info.xoff = 0;
+     info.yoff = 0;
+-    info.width = frameSize.width;
+-    info.height = frameSize.height;
++    info.width = frameSize.width * [[self window] backingScaleFactor];
++    info.height = frameSize.height * [[self window] backingScaleFactor];
+ 
+     dpy_set_ui_info(dcl.con, &info, TRUE);
+ }
 -- 
 2.50.1 (Apple Git-155)
 
