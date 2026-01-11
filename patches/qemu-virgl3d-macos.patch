@@ -403,7 +403,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
      if (eventsTap) {
          CFRelease(eventsTap);
      }
-@@ -286,6 +330,45 @@ - (BOOL) isOpaque
+@@ -286,6 +330,47 @@ - (BOOL) isOpaque
      return YES;
  }
  
@@ -451,7 +451,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
  - (void) viewDidMoveToWindow
  {
      [self resizeWindow];
-@@ -322,29 +405,43 @@ - (void) unhideCursor
+@@ -322,29 +407,43 @@ - (void) unhideCursor
      [NSCursor unhide];
  }
  
@@ -2175,7 +2175,7 @@ diff --git a/ui/cocoa.m b/ui/cocoa.m
 index 2f982b523c..6ca91a1193 100644
 --- a/ui/cocoa.m
 +++ b/ui/cocoa.m
-@@ -502,7 +502,10 @@ - (void) resizeWindow
+@@ -502,7 +504,10 @@ - (void) resizeWindow
      [[self window] setContentAspectRatio:NSMakeSize(screen.width, screen.height)];
  
      if (!([[self window] styleMask] & NSWindowStyleMaskResizable)) {
@@ -2187,7 +2187,7 @@ index 2f982b523c..6ca91a1193 100644
          [[self window] center];
      } else if ([[self window] styleMask] & NSWindowStyleMaskFullScreen) {
          [[self window] setContentSize:[self fixAspectRatio:[self screenSafeAreaSize]]];
-@@ -560,8 +563,8 @@ - (void) updateUIInfoLocked
+@@ -560,8 +565,8 @@ - (void) updateUIInfoLocked
  
      info.xoff = 0;
      info.yoff = 0;
