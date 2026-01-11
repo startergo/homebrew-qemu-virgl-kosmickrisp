@@ -187,6 +187,42 @@ jobs:
         with:
           username: "startergo"
 
+      - name: Check upstream scheduled workflows completed (scheduled run only)
+        if: github.event_name == 'schedule'
+        run: |
+          echo "Checking that angle, libepoxy, and virglrenderer scheduled workflows completed successfully..."
+
+          TODAY=$(date -u +%Y-%m-%d)
+
+          # Check if angle's scheduled workflow ran successfully today
+          ANGLE_RUN=$(gh run list --repo startergo/homebrew-angle --workflow=Build Bottles --event=schedule --limit 5 --json databaseId,conclusion,createdAt --jq ".[] | select(.conclusion == \"success\") | select(.createdAt | startswith(\"$TODAY\")) | .databaseId" | head -1)
+
+          if [ -z "$ANGLE_RUN" ]; then
+            echo "ERROR: angle scheduled workflow did not complete successfully today. Aborting."
+            exit 1
+          fi
+          echo "✓ angle scheduled workflow completed today (run #$ANGLE_RUN)"
+
+          # Check if libepoxy's scheduled workflow ran successfully today
+          LIBEPOXY_RUN=$(gh run list --repo startergo/homebrew-libepoxy --workflow=Build Bottles --event=schedule --limit 5 --json databaseId,conclusion,createdAt --jq ".[] | select(.conclusion == \"success\") | select(.createdAt | startswith(\"$TODAY\")) | .databaseId" | head -1)
+
+          if [ -z "$LIBEPOXY_RUN" ]; then
+            echo "ERROR: libepoxy scheduled workflow did not complete successfully today. Aborting."
+            exit 1
+          fi
+          echo "✓ libepoxy scheduled workflow completed today (run #$LIBEPOXY_RUN)"
+
+          # Check if virglrenderer's scheduled workflow ran successfully today
+          VIRGL_RUN=$(gh run list --repo startergo/homebrew-virglrenderer --workflow=Build Bottles --event=schedule --limit 5 --json databaseId,conclusion,createdAt --jq ".[] | select(.conclusion == \"success\") | select(.createdAt | startswith(\"$TODAY\")) | .databaseId" | head -1)
+
+          if [ -z "$VIRGL_RUN" ]; then
+            echo "ERROR: virglrenderer scheduled workflow did not complete successfully today. Aborting."
+            exit 1
+          fi
+          echo "✓ virglrenderer scheduled workflow completed today (run #$VIRGL_RUN)"
+
+          echo "✓ All upstream scheduled workflows verified"
+
       - name: Checkout tap
         uses: actions/checkout@v4
         with:
