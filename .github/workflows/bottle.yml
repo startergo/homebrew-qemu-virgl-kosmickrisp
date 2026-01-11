@@ -37,6 +37,8 @@ jobs:
     steps:
       - name: Checkout tap
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - id: qemu_commit
         run: |
@@ -96,6 +98,8 @@ jobs:
     steps:
       - name: Checkout tap
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Check if we should run
         id: check
@@ -185,6 +189,8 @@ jobs:
 
       - name: Checkout tap
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Show formula state before update
         run: |
