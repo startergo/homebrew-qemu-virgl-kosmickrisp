@@ -444,6 +444,15 @@ index 6ca91a1193..135ceb25c0 100644
 +        y2 = gl_scanout_y + surface_height(surface);
 +    }
 +
+
++    /* Skip drawing if no scanout texture is bound yet.
++     * This can happen during UEFI boot before the guest initializes
++     * the display properly. Drawing with texture ID 0 would result
++     * in a white screen. */
++    if (gl_scanout_id == 0) {
++        gl_needs_display = false;
++        return;
++    }
 +    cocoa_gl_scanout_acquire();
 +    glGenFramebuffers(1, &fb);
 +    glBindFramebuffer(GL_READ_FRAMEBUFFER, fb);
