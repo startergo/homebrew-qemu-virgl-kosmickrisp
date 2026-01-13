@@ -34,42 +34,8 @@ Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
 
 
 [startergo: Added fix for white screen during UEFI boot with gl=core mode
- by checking gl_scanout_id before binding texture to framebuffer in glDraw]
+ by checking gl_scanout_id AND surface validity before binding texture in glDraw]
 ---
-diff --git a/include/ui/console.h b/include/ui/console.h
-index 98feaa5..2731895 100644
---- a/include/ui/console.h
-+++ b/include/ui/console.h
-@@ -420,18 +420,15 @@ int qemu_invalidate_text_consoles(void);
- #ifdef CONFIG_OPENGL
- bool console_gl_check_format(DisplayChangeListener *dcl,
-                              pixman_format_code_t format);
--void surface_gl_create_texture(QemuGLShader *gls,
--                               DisplaySurface *surface);
-+void surface_gl_create_texture(DisplaySurface *surface);
- bool surface_gl_create_texture_from_fd(DisplaySurface *surface,
-                                        int fd, GLuint *texture,
-                                        GLuint *mem_obj);
--void surface_gl_update_texture(QemuGLShader *gls,
--                               DisplaySurface *surface,
-+void surface_gl_update_texture(DisplaySurface *surface,
-                                int x, int y, int w, int h);
- void surface_gl_render_texture(QemuGLShader *gls,
-                                DisplaySurface *surface);
--void surface_gl_destroy_texture(QemuGLShader *gls,
--                               DisplaySurface *surface);
-+void surface_gl_destroy_texture(DisplaySurface *surface);
- void surface_gl_setup_viewport(QemuGLShader *gls,
-                                DisplaySurface *surface,
-                                int ww, int wh);
-diff --git a/include/ui/egl-helpers.h b/include/ui/egl-helpers.h
-index acf993f..d606172 100644
---- a/include/ui/egl-helpers.h
-+++ b/include/ui/egl-helpers.h
-@@ -59,7 +59,9 @@ void egl_dmabuf_create_fence(QemuDmaBuf *dmabuf);
- 
- #endif
- 
 -EGLSurface qemu_egl_init_surface_x11(EGLContext ectx, EGLNativeWindowType win);
 +EGLSurface qemu_egl_init_surface(EGLContext ectx, EGLNativeWindowType win);
 +
@@ -211,7 +177,7 @@ index ec92723..b173717 100644
  #endif
  #if defined(CONFIG_DBUS_DISPLAY)
 diff --git a/ui/cocoa.m b/ui/cocoa.m
-index 23b7a73..24e14e1 100644
+index 23b7a73..2fab908 100644
 --- a/ui/cocoa.m
 +++ b/ui/cocoa.m
 @@ -22,9 +22,12 @@
@@ -419,7 +385,7 @@ index 23b7a73..24e14e1 100644
      if (eventsTap) {
          CFRelease(eventsTap);
      }
-@@ -411,6 +467,53 @@ - (BOOL) isOpaque
+@@ -411,6 +467,54 @@ - (BOOL) isOpaque
      return YES;
  }
  
@@ -433,11 +399,12 @@ index 23b7a73..24e14e1 100644
 +{
 +    BQL_LOCK_GUARD();
 +
-+    /* Skip rendering if no scanout texture is bound yet.
-+     * This can happen during UEFI boot before the guest initializes
-+     * the display properly. Binding texture ID 0 to framebuffer
-+     * would result in a white screen. */
-+    if (gl_scanout_id == 0) {
++    /* Skip rendering if no scanout texture is bound yet or the surface
++     * is not ready. This can happen during UEFI boot before the guest
++     * initializes the display properly. Rendering without valid texture
++     * data would result in a white screen. */
++    if (!surface || gl_scanout_id == 0 ||
++        surface_width(surface) == 0 || surface_height(surface) == 0) {
 +        return;
 +    }
 +
@@ -473,7 +440,7 @@ index 23b7a73..24e14e1 100644
  - (void) viewDidMoveToWindow
  {
      [self resizeWindow];
-@@ -447,29 +550,43 @@ - (void) unhideCursor
+@@ -447,29 +551,43 @@ - (void) unhideCursor
      [NSCursor unhide];
  }
  
@@ -528,7 +495,7 @@ index 23b7a73..24e14e1 100644
  
      cursor_unref(cursor);
      cursor = given_cursor;
-@@ -480,9 +597,6 @@ - (void)setCursor:(QEMUCursor *)given_cursor
+@@ -480,9 +598,6 @@ - (void)setCursor:(QEMUCursor *)given_cursor
  
      cursor_ref(cursor);
  
@@ -538,7 +505,7 @@ index 23b7a73..24e14e1 100644
      provider = CGDataProviderCreateWithData(
          NULL,
          cursor->data,
-@@ -507,8 +621,8 @@ - (void)setCursor:(QEMUCursor *)given_cursor
+@@ -507,8 +622,8 @@ - (void)setCursor:(QEMUCursor *)given_cursor
      CGDataProviderRelease(provider);
      [CATransaction begin];
      [CATransaction setDisableActions:YES];
@@ -548,7 +515,7 @@ index 23b7a73..24e14e1 100644
      [CATransaction commit];
      CGImageRelease(image);
  }
-@@ -519,61 +633,58 @@ - (void) drawRect:(NSRect) rect
+@@ -519,61 +634,58 @@ - (void) drawRect:(NSRect) rect
  
      // get CoreGraphic context
      CGContextRef viewContextRef = [[NSGraphicsContext currentContext] CGContext];
@@ -658,7 +625,7 @@ index 23b7a73..24e14e1 100644
  }
  
  - (NSSize)fixAspectRatio:(NSSize)max
-@@ -637,9 +748,15 @@ - (void) resizeWindow
+@@ -637,9 +749,15 @@ - (void) resizeWindow
      }
  }
  
@@ -676,7 +643,7 @@ index 23b7a73..24e14e1 100644
  }
  
  #pragma clang diagnostic push
-@@ -712,28 +829,17 @@ - (void) updateUIInfo
+@@ -712,28 +830,17 @@ - (void) updateUIInfo
      });
  }
  
@@ -709,7 +676,7 @@ index 23b7a73..24e14e1 100644
  }
  
  - (void) setFullGrab:(id)sender
-@@ -1224,7 +1330,6 @@ - (void) notifyMouseModeChange {
+@@ -1224,7 +1331,6 @@ - (void) notifyMouseModeChange {
      }
  }
  - (BOOL) isMouseGrabbed {return isMouseGrabbed;}
@@ -717,7 +684,7 @@ index 23b7a73..24e14e1 100644
  
  /*
   * Makes the target think all down keys are being released.
-@@ -1278,7 +1383,11 @@ - (void)adjustSpeed:(id)sender;
+@@ -1278,7 +1384,11 @@ - (void)adjustSpeed:(id)sender;
  @end
  
  @implementation QemuCocoaAppController
@@ -729,7 +696,7 @@ index 23b7a73..24e14e1 100644
  {
      NSWindow *window;
  
-@@ -1286,16 +1395,21 @@ - (id) init
+@@ -1286,16 +1396,21 @@ - (id) init
  
      self = [super init];
      if (self) {
@@ -753,7 +720,7 @@ index 23b7a73..24e14e1 100644
              styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskClosable
              backing:NSBackingStoreBuffered defer:NO];
          if(!window) {
-@@ -1389,7 +1503,7 @@ - (void)windowDidExitFullScreen:(NSNotification *)notification
+@@ -1389,7 +1504,7 @@ - (void)windowDidExitFullScreen:(NSNotification *)notification
  
  - (void)windowDidResize:(NSNotification *)notification
  {
@@ -762,7 +729,7 @@ index 23b7a73..24e14e1 100644
      [cocoaView updateUIInfo];
  }
  
-@@ -1489,13 +1603,9 @@ - (void)zoomToFit:(id) sender
+@@ -1489,13 +1604,9 @@ - (void)zoomToFit:(id) sender
  
  - (void)toggleZoomInterpolation:(id) sender
  {
@@ -779,7 +746,7 @@ index 23b7a73..24e14e1 100644
  }
  
  /* Displays the console on the screen */
-@@ -1763,7 +1873,7 @@ static void create_initial_menus(void)
+@@ -1763,7 +1874,7 @@ static void create_initial_menus(void)
      [menuItem setState: [[cocoaView window] styleMask] & NSWindowStyleMaskResizable ? NSControlStateValueOn : NSControlStateValueOff];
      [menu addItem: menuItem];
      menuItem = [[[NSMenuItem alloc] initWithTitle:@"Zoom Interpolation" action:@selector(toggleZoomInterpolation:) keyEquivalent:@""] autorelease];
@@ -788,7 +755,7 @@ index 23b7a73..24e14e1 100644
      [menu addItem: menuItem];
      menuItem = [[[NSMenuItem alloc] initWithTitle:@"View" action:nil keyEquivalent:@""] autorelease];
      [menuItem setSubmenu:menu];
-@@ -2025,29 +2135,28 @@ static int cocoa_main(void)
+@@ -2025,29 +2136,28 @@ static int cocoa_main(void)
  static void cocoa_update(DisplayChangeListener *dcl,
                           int x, int y, int w, int h)
  {
@@ -827,7 +794,7 @@ index 23b7a73..24e14e1 100644
      });
  }
  
-@@ -2087,9 +2196,294 @@ static void cocoa_cursor_define(DisplayChangeListener *dcl, QEMUCursor *cursor)
+@@ -2087,9 +2197,294 @@ static void cocoa_cursor_define(DisplayChangeListener *dcl, QEMUCursor *cursor)
      });
  }
  
@@ -1122,7 +1089,7 @@ index 23b7a73..24e14e1 100644
  
      COCOA_DEBUG("qemu_cocoa: cocoa_display_init\n");
  
-@@ -2100,10 +2494,89 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -2100,10 +2495,89 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
  
      [QemuApplication sharedApplication];
  
@@ -1213,7 +1180,7 @@ index 23b7a73..24e14e1 100644
      /* if fullscreen mode is to be used */
      if (opts->has_full_screen && opts->full_screen) {
          [[cocoaView window] toggleFullScreen: nil];
-@@ -2127,9 +2600,8 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -2127,9 +2601,8 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
          [cocoaView window].styleMask |= NSWindowStyleMaskResizable;
      }
  
@@ -1225,7 +1192,7 @@ index 23b7a73..24e14e1 100644
  
      create_initial_menus();
      /*
-@@ -2142,9 +2614,6 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -2142,9 +2615,6 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
      add_console_menu_entries();
      addRemovableDevicesMenuItems();
  
@@ -1235,7 +1202,7 @@ index 23b7a73..24e14e1 100644
      // register vga output callbacks
      register_displaychangelistener(&dcl);
      qemu_add_mouse_mode_change_notifier(&mouse_mode_change_notifier);
-@@ -2166,6 +2635,7 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -2166,6 +2636,7 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
  
  static QemuDisplay qemu_display_cocoa = {
      .type       = DISPLAY_TYPE_COCOA,
@@ -1243,7 +1210,7 @@ index 23b7a73..24e14e1 100644
      .init       = cocoa_display_init,
  };
  
-@@ -2175,3 +2645,7 @@ static void register_cocoa(void)
+@@ -2175,3 +2646,7 @@ static void register_cocoa(void)
  }
  
  type_init(register_cocoa);
