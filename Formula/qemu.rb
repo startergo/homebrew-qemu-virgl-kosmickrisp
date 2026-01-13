@@ -4,13 +4,14 @@ class Qemu < Formula
   license "GPL-2.0-or-later"
 
   version "1.0.20"
-  url "https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/archive/refs/tags/v1.0.20.tar.gz"
-  sha256 "3956420910274652e9f9351440237d840bf1d32ec79c71a7c6cf4364c580885d"
+  version "1.0.21"
+  url "https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/archive/5332d5f025eda364907f47f3420537bbff970792.tar.gz"
+  sha256 "83e2fe9e3449fd8788084707423bfdf45e34bb975e772644864c6bfebdfa1140"
   head "https://gitlab.com/qemu-project/qemu.git", branch: "master"
 
   bottle do
-    root_url "https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/releases/download/v1.0.20"
-    sha256 arm64_sequoia: "2ebf3b236938b3324fa760802da621b78c8fc687547ee84a58a201b485b9175e"
+    root_url "https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/releases/download/v1.0.21"
+    sha256 arm64_sequoia: "90027283254b1612499903bde8ebb1a871b65593f771bcf5831691f8af8bbc57"
   end
 
   # Dependencies for GPU acceleration
