@@ -53,30 +53,23 @@ class Qemu < Formula
     system "tar", "-xzf", "qemu.tar.gz", "--strip-components=1"
 
     # Apply audio/coreaudio fixes from qemu-opengl41.patch
-    patch_audio = "#{__dir__}/../patches/qemu-audio-coreaudio.patch"
-    if File.exist?(patch_audio)
-      ohai "Applying audio/coreaudio fixes..."
-      system "patch", "-p1", "--batch", "--verbose", "-i", patch_audio
-    end
+    # NOTE: Disabled - included in texture-borrowing patch
+    # patch_audio = "#{__dir__}/../patches/qemu-audio-coreaudio.patch"
+    # if File.exist?(patch_audio)
+    #   ohai "Applying audio/coreaudio fixes..."
+    #   system "patch", "-p1", "--batch", "--verbose", "-i", patch_audio
+    # end
 
-    # Apply @akihikodaki's VirGL 3D macOS patch with ANGLE Metal backend
-    patch_virgl = "#{__dir__}/../patches/qemu-virgl3d-macos.patch"
-    ohai "Applying VirGL 3D macOS patch with ANGLE Metal backend..."
-    system "patch", "-p1", "--batch", "--verbose", "-i", patch_virgl
+    # Apply @akihikodaki's VirGL 3D macOS texture borrowing patch
+    patch_texture_borrowing = "#{__dir__}/../patches/qemu-texture-borrowing.patch"
+    ohai "Applying VirGL 3D macOS texture borrowing patch..."
+    system "patch", "-p1", "--batch", "--verbose", "-i", patch_texture_borrowing
 
     # Apply NSOpenGLContext fix for Desktop GL (gl=core)
     # NOTE: Disabled - conflicts with current upstream QEMU
     # patch_nsopengl = "#{__dir__}/../patches/qemu-virgl3d-macos-nsopengl.patch"
     # ohai "Applying NSOpenGLContext fix for Desktop GL..."
     # system "patch", "-p1", "--batch", "--verbose", "-i", patch_nsopengl
-
-    # Apply texture borrowing mechanism for Desktop GL display initialization
-    # NOTE: Disabled - uses shader-based approach which is incorrect
-    # patch_texture_borrowing = "#{__dir__}/../patches/qemu-texture-borrowing.patch"
-    # if File.exist?(patch_texture_borrowing)
-    #   ohai "Applying texture borrowing mechanism for Desktop GL..."
-    #   system "patch", "-p1", "--batch", "--verbose", "-i", patch_texture_borrowing
-    # end
 
     # Download and install Vulkan SDK with KosmicKrisp for Venus support
     # KosmicKrisp is an optional component that must be explicitly selected
