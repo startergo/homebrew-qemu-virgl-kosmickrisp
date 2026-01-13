@@ -1,0 +1,140 @@
+From: Use EGL for Desktop GL and fix inverted boot display on macOS
+Subject: Use EGL for Desktop GL and fix texture orientation for ANGLE Metal backend
+
+Changes:
+1. Use EGL for Desktop GL (gl=core) on macOS instead of NSOpenGLContext
+   - NSOpenGLContext cannot share objects with virglrenderer's EGL context
+   - Always use CAMetalLayer for OpenGL rendering on macOS
+   - Initialize EGL with core profile for Desktop GL mode
+   - Fixes "no display" issue with gl=core mode
+
+2. Fix inverted display during boot by inverting y_0_top flag for ANGLE
+   - ANGLE Metal backend always renders textures with Y=0 at top
+   - Invert the guest's y_0_top flag to select correct shader
+   - This should fix boot display being inverted while preserving login screen
+
+--- a/ui/cocoa.m	2026-01-08 22:58:51
++++ b/ui/cocoa.m	2026-01-09 09:22:27
+@@ -476,22 +476,23 @@
+         screen.width = frameRect.size.width;
+         screen.height = frameRect.size.height;
+         colorspace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+ #if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_VERSION_14_0
+         [self setClipsToBounds:YES];
+ #endif
+         [self setWantsLayer:YES];
+ 
+ #ifdef CONFIG_OPENGL
+         if (gl) {
+-            bool es = gl == DISPLAY_GL_MODE_ES;
+-            CALayer *layer = es ? [CAMetalLayer new] : [QemuCGLLayer new];
++            // Use CAMetalLayer for both Desktop GL and OpenGL ES on macOS
++            // EGL with ANGLE Metal backend handles both modes
++            CALayer *layer = [CAMetalLayer new];
+             [self setLayer:layer];
+             [layer release];
+         }
+ #endif
+ 
+         cursorLayer = [[CALayer alloc] init];
+         [cursorLayer setAnchorPoint:CGPointMake(0, 1)];
+         [cursorLayer setZPosition:1];
+         [[self layer] addSublayer:cursorLayer];
+ 
+@@ -2374,21 +2375,26 @@
+ static void cocoa_gl_scanout_texture(DisplayChangeListener *dcl,
+                                      uint32_t backing_id,
+                                      bool backing_y_0_top,
+                                      uint32_t backing_width,
+                                      uint32_t backing_height,
+                                      uint32_t x, uint32_t y,
+                                      uint32_t w, uint32_t h,
+                                      void *d3d_tex2d)
+ {
+     gl_scanout_id = backing_id;
+-    gl_scanout_y0_top = backing_y_0_top;
++    /* ANGLE Metal backend always uses Y=0 at top
++     * Invert the flag to select correct shader:
++     * - Guest says y_0_top=false (bottom-left): use flip shader (no transform)
++     * - Guest says y_0_top=true (top-left): use non-flip shader (flip Y)
++     */
++    gl_scanout_y0_top = !backing_y_0_top;
+     gl_dirty = true;
+ }
+ 
+ static void cocoa_gl_scanout_flush(DisplayChangeListener *dcl,
+                                    uint32_t x, uint32_t y,
+                                    uint32_t w, uint32_t h)
+ {
+     gl_dirty = true;
+ }
+ 
+@@ -2443,51 +2449,40 @@
+     // Create an Application controller
+ #ifdef CONFIG_OPENGL
+     controller = [[QemuCocoaAppController alloc] initWithGL:opts->gl];
+ #else
+     controller = [[QemuCocoaAppController alloc] init];
+ #endif
+     [NSApp setDelegate:controller];
+ 
+     if (display_opengl) {
+ #ifdef CONFIG_OPENGL
+-        if (opts->gl == DISPLAY_GL_MODE_ES) {
+ #ifdef CONFIG_EGL
+-            CALayer *layer = [cocoaView layer];
+-            uint64_t id = [[(CAMetalLayer *)layer preferredDevice] registryID];
+-            if (qemu_egl_init_dpy_metal(DISPLAY_GL_MODE_ES, id)) {
+-                exit(1);
+-            }
+-            gl_view_ctx = qemu_egl_init_ctx();
+-            if (!gl_view_ctx) {
+-                exit(1);
+-            }
+-            egl_surface = qemu_egl_init_surface(gl_view_ctx, layer);
+-            if (!egl_surface) {
+-                exit(1);
+-            }
+-#else
+-            error_report("OpenGLES without EGL is not supported - exiting");
++        CALayer *layer = [cocoaView layer];
++        uint64_t id = [[(CAMetalLayer *)layer preferredDevice] registryID];
++        if (qemu_egl_init_dpy_metal(opts->gl, id)) {
+             exit(1);
+-#endif
+-        } else {
+-            gl_view_nsctx = cocoa_gl_create_nscontext(32);
+-            if (!gl_view_nsctx) {
+-                exit(1);
+-            }
+-            [gl_view_nsctx makeCurrentContext];
+-            gl_view_ctx = (QEMUGLContext)[gl_view_nsctx CGLContextObj];
+-#ifdef CONFIG_EGL
+-            egl_surface = EGL_NO_SURFACE;
+-#endif
+-            cocoa_gl_make_context_current(&dgc, gl_view_ctx);
+         }
++        gl_view_ctx = qemu_egl_init_ctx();
++        if (!gl_view_ctx) {
++            exit(1);
++        }
++        egl_surface = qemu_egl_init_surface(gl_view_ctx, layer);
++        if (!egl_surface) {
++            exit(1);
++        }
++        cocoa_gl_make_context_current(&dgc, gl_view_ctx);
++#else
++        error_report("OpenGL without EGL is not supported on macOS - exiting");
++        exit(1);
++#endif
++        gl_view_nsctx = nil;
+ 
+         dgc.gls = qemu_gl_init_shader();
+         dcl.ops = &dcl_gl_ops;
+ 
+         for (unsigned int index = 0; ; index++) {
+             QemuConsole *con = qemu_console_lookup_by_index(index);
+             if (!con) {
+                 break;
+             }
+

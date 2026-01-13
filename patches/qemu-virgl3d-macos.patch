@@ -1,3 +1,15 @@
+From 3c07cbe3c2cece80ff70984f318ae92ab3717e38 Mon Sep 17 00:00:00 2001
+From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
+Date: Wed, 24 Dec 2025 10:57:01 +0900
+Subject: [PATCH] Support Virgil 3D renderer on macOS
+
+Virgil 3D renderer will be available with ui/cocoa on macOS.
+
+ui/cocoa uses OpenGL.framework for the Core profile. ui/cocoa configures
+the context using EGL in a way compatible with ANGLE for the ES profile.
+
+Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
+---
 diff --git a/include/ui/console.h b/include/ui/console.h
 index 98feaa5..2731895 100644
 --- a/include/ui/console.h
@@ -97,7 +109,7 @@ index 690ece7..02cf113 100644
  #  include "ui/egl-helpers.h"
  #  include "ui/egl-context.h"
 diff --git a/meson.build b/meson.build
-index 56df08c..995c24f 100644
+index c580072..1a34c24 100644
 --- a/meson.build
 +++ b/meson.build
 @@ -1217,7 +1217,7 @@ if get_option('attr').allowed()
@@ -173,7 +185,7 @@ index ec92723..b173717 100644
  #endif
  #if defined(CONFIG_DBUS_DISPLAY)
 diff --git a/ui/cocoa.m b/ui/cocoa.m
-index 23b7a73..11531dc 100644
+index 23b7a73..096315a 100644
 --- a/ui/cocoa.m
 +++ b/ui/cocoa.m
 @@ -22,9 +22,12 @@
@@ -381,7 +393,7 @@ index 23b7a73..11531dc 100644
      if (eventsTap) {
          CFRelease(eventsTap);
      }
-@@ -411,6 +467,53 @@ - (BOOL) isOpaque
+@@ -411,6 +467,44 @@ - (BOOL) isOpaque
      return YES;
  }
  
@@ -410,15 +422,6 @@ index 23b7a73..11531dc 100644
 +        y2 = gl_scanout_y + surface_height(surface);
 +    }
 +
-+    /* Skip drawing if no scanout texture is bound yet.
-+     * This can happen during UEFI boot before the guest initializes
-+     * the display properly. Drawing with texture ID 0 would result
-+     * in a white screen. */
-+    if (gl_scanout_id == 0) {
-+        gl_needs_display = false;
-+        return;
-+    }
-+
 +    cocoa_gl_scanout_acquire();
 +    glGenFramebuffers(1, &fb);
 +    glBindFramebuffer(GL_READ_FRAMEBUFFER, fb);
@@ -435,7 +438,7 @@ index 23b7a73..11531dc 100644
  - (void) viewDidMoveToWindow
  {
      [self resizeWindow];
-@@ -447,29 +550,43 @@ - (void) unhideCursor
+@@ -447,29 +541,43 @@ - (void) unhideCursor
      [NSCursor unhide];
  }
  
@@ -490,7 +493,7 @@ index 23b7a73..11531dc 100644
  
      cursor_unref(cursor);
      cursor = given_cursor;
-@@ -480,9 +597,6 @@ - (void)setCursor:(QEMUCursor *)given_cursor
+@@ -480,9 +588,6 @@ - (void)setCursor:(QEMUCursor *)given_cursor
  
      cursor_ref(cursor);
  
@@ -500,7 +503,7 @@ index 23b7a73..11531dc 100644
      provider = CGDataProviderCreateWithData(
          NULL,
          cursor->data,
-@@ -507,8 +621,8 @@ - (void)setCursor:(QEMUCursor *)given_cursor
+@@ -507,8 +612,8 @@ - (void)setCursor:(QEMUCursor *)given_cursor
      CGDataProviderRelease(provider);
      [CATransaction begin];
      [CATransaction setDisableActions:YES];
@@ -510,7 +513,7 @@ index 23b7a73..11531dc 100644
      [CATransaction commit];
      CGImageRelease(image);
  }
-@@ -519,61 +633,58 @@ - (void) drawRect:(NSRect) rect
+@@ -519,61 +624,58 @@ - (void) drawRect:(NSRect) rect
  
      // get CoreGraphic context
      CGContextRef viewContextRef = [[NSGraphicsContext currentContext] CGContext];
@@ -620,7 +623,7 @@ index 23b7a73..11531dc 100644
  }
  
  - (NSSize)fixAspectRatio:(NSSize)max
-@@ -637,9 +748,15 @@ - (void) resizeWindow
+@@ -637,9 +739,15 @@ - (void) resizeWindow
      }
  }
  
@@ -638,7 +641,7 @@ index 23b7a73..11531dc 100644
  }
  
  #pragma clang diagnostic push
-@@ -712,28 +829,17 @@ - (void) updateUIInfo
+@@ -712,28 +820,17 @@ - (void) updateUIInfo
      });
  }
  
@@ -659,19 +662,19 @@ index 23b7a73..11531dc 100644
          screen.height = h;
          [self resizeWindow];
 -        [self updateBounds];
-+        [self updateScale];
-     }
+-    }
 -
 -    // update screenBuffer
 -    if (pixman_image) {
 -        pixman_image_unref(pixman_image);
--    }
++        [self updateScale];
+     }
 -
 -    pixman_image = image;
  }
  
  - (void) setFullGrab:(id)sender
-@@ -1224,7 +1330,6 @@ - (void) notifyMouseModeChange {
+@@ -1224,7 +1321,6 @@ - (void) notifyMouseModeChange {
      }
  }
  - (BOOL) isMouseGrabbed {return isMouseGrabbed;}
@@ -679,7 +682,7 @@ index 23b7a73..11531dc 100644
  
  /*
   * Makes the target think all down keys are being released.
-@@ -1278,7 +1383,11 @@ - (void)adjustSpeed:(id)sender;
+@@ -1278,7 +1374,11 @@ - (void)adjustSpeed:(id)sender;
  @end
  
  @implementation QemuCocoaAppController
@@ -691,7 +694,7 @@ index 23b7a73..11531dc 100644
  {
      NSWindow *window;
  
-@@ -1286,16 +1395,21 @@ - (id) init
+@@ -1286,16 +1386,21 @@ - (id) init
  
      self = [super init];
      if (self) {
@@ -715,7 +718,7 @@ index 23b7a73..11531dc 100644
              styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskClosable
              backing:NSBackingStoreBuffered defer:NO];
          if(!window) {
-@@ -1389,7 +1503,7 @@ - (void)windowDidExitFullScreen:(NSNotification *)notification
+@@ -1389,7 +1494,7 @@ - (void)windowDidExitFullScreen:(NSNotification *)notification
  
  - (void)windowDidResize:(NSNotification *)notification
  {
@@ -724,7 +727,7 @@ index 23b7a73..11531dc 100644
      [cocoaView updateUIInfo];
  }
  
-@@ -1489,13 +1603,9 @@ - (void)zoomToFit:(id) sender
+@@ -1489,13 +1594,9 @@ - (void)zoomToFit:(id) sender
  
  - (void)toggleZoomInterpolation:(id) sender
  {
@@ -741,7 +744,7 @@ index 23b7a73..11531dc 100644
  }
  
  /* Displays the console on the screen */
-@@ -1763,7 +1873,7 @@ static void create_initial_menus(void)
+@@ -1763,7 +1864,7 @@ static void create_initial_menus(void)
      [menuItem setState: [[cocoaView window] styleMask] & NSWindowStyleMaskResizable ? NSControlStateValueOn : NSControlStateValueOff];
      [menu addItem: menuItem];
      menuItem = [[[NSMenuItem alloc] initWithTitle:@"Zoom Interpolation" action:@selector(toggleZoomInterpolation:) keyEquivalent:@""] autorelease];
@@ -750,7 +753,7 @@ index 23b7a73..11531dc 100644
      [menu addItem: menuItem];
      menuItem = [[[NSMenuItem alloc] initWithTitle:@"View" action:nil keyEquivalent:@""] autorelease];
      [menuItem setSubmenu:menu];
-@@ -2025,29 +2135,28 @@ static int cocoa_main(void)
+@@ -2025,29 +2126,28 @@ static int cocoa_main(void)
  static void cocoa_update(DisplayChangeListener *dcl,
                           int x, int y, int w, int h)
  {
@@ -789,7 +792,7 @@ index 23b7a73..11531dc 100644
      });
  }
  
-@@ -2087,9 +2196,294 @@ static void cocoa_cursor_define(DisplayChangeListener *dcl, QEMUCursor *cursor)
+@@ -2087,9 +2187,303 @@ static void cocoa_cursor_define(DisplayChangeListener *dcl, QEMUCursor *cursor)
      });
  }
  
@@ -947,6 +950,15 @@ index 23b7a73..11531dc 100644
 +        return;
 +    }
 +#endif
++
++    /* Skip triggering layer display if no scanout texture is bound yet.
++     * This can happen during UEFI boot before the guest initializes
++     * the display properly. For CGL, calling setNeedsDisplay when
++     * gl_scanout_id == 0 would result in a white screen. */
++    if (gl_scanout_id == 0) {
++        gl_needs_display = false;
++        return;
++    }
 +
 +    gl_needs_display = true;
 +
