@@ -280,7 +280,7 @@ index 6ca91a1193..135ceb25c0 100644
  static NSTextField *pauseLabel;
  
  static bool allow_events;
-@@ -111,6 +101,58 @@ static void cocoa_switch(DisplayChangeListener *dcl,
+@@ -111,6 +101,59 @@ static void cocoa_switch(DisplayChangeListener *dcl,
  static QemuEvent cbevent;
  static QemuCocoaPasteboardTypeOwner *cbowner;
  
@@ -296,6 +296,7 @@ index 6ca91a1193..135ceb25c0 100644
 +static QEMUGLContext gl_ctx;
 +static bool gl_needs_display;
 +static bool gl_scanout_y_flip;
++static bool gl_scanout_flushed;
 +
 +#ifdef CONFIG_EGL
 +static QEMUGLContext gl_view_ctx;
@@ -415,7 +416,7 @@ index 6ca91a1193..135ceb25c0 100644
      if (eventsTap) {
          CFRelease(eventsTap);
      }
-@@ -286,6 +342,54 @@ - (BOOL) isOpaque
+@@ -286,6 +342,56 @@ - (BOOL) isOpaque
      return YES;
  }
  
@@ -429,12 +430,14 @@ index 6ca91a1193..135ceb25c0 100644
 +{
 +    BQL_LOCK_GUARD();
 +
-+    /* Skip rendering if no scanout texture is bound yet or the surface
-+     * is not ready. This can happen during UEFI boot before the guest
-+     * initializes the display properly. Rendering without valid texture
-+     * data would result in a white screen. */
++    /* Skip rendering if no scanout texture is bound yet, the surface
++     * is not ready, or the texture has not been flushed with actual content.
++     * This can happen during UEFI boot before the guest
++     * display properly or flushes rendering commands. Rendering without
++     * valid texture data would result in a white screen. */
 +    if (!surface || gl_scanout_id == 0 ||
-+        surface_width(surface) == 0 || surface_height(surface) == 0) {
++        surface_width(surface) == 0 || surface_height(surface) == 0 ||
++        !gl_scanout_flushed) {
 +        return;
 +    }
 +
@@ -824,7 +827,7 @@ index 6ca91a1193..135ceb25c0 100644
      });
  }
  
-@@ -1965,9 +2065,294 @@ static void cocoa_cursor_define(DisplayChangeListener *dcl, QEMUCursor *cursor)
+@@ -1965,9 +2065,296 @@ static void cocoa_cursor_define(DisplayChangeListener *dcl, QEMUCursor *cursor)
      });
  }
  
@@ -1070,6 +1073,7 @@ index 6ca91a1193..135ceb25c0 100644
 +#endif
 +    gl_scanout_x = x;
 +    gl_scanout_y = backing_y_0_top ? backing_height - h - y : y;
++    gl_scanout_flushed = false;
 +
 +    cocoa_gl_scanout_release();
 +}
@@ -1079,6 +1083,7 @@ index 6ca91a1193..135ceb25c0 100644
 +                                   uint32_t w, uint32_t h)
 +{
 +    cocoa_gl_scanout_acquire();
++    gl_scanout_flushed = true;
 +    cocoa_gl_scanout_release();
 +    cocoa_gl_dispatch_display();
 +}
