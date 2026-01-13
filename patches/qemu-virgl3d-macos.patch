@@ -1,4 +1,4 @@
-From a03612c3e0d4bd707f429357be34039cf753c3d4 Mon Sep 17 00:00:00 2001
+From 3c07cbe3c2cece80ff70984f318ae92ab3717e38 Mon Sep 17 00:00:00 2001
 From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
 Date: Wed, 24 Dec 2025 10:57:01 +0900
 Subject: [PATCH] Support Virgil 3D renderer on macOS
@@ -18,7 +18,7 @@ Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
  meson.build                |  12 +-
  qapi/ui.json               |   5 +-
  qemu-options.hx            |   2 +-
- ui/cocoa.m                 | 742 ++++++++++++++++++++++++++++++-------
+ ui/cocoa.m                 | 751 ++++++++++++++++++++++++++++++-------
  ui/console-gl.c            |  12 +-
  ui/console.c               |   7 +-
  ui/dbus.c                  |  12 +-
@@ -30,10 +30,10 @@ Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
  ui/sdl2-gl.c               |  10 +-
  ui/sdl2.c                  |  12 +-
  ui/spice-display.c         |  14 +-
- 20 files changed, 773 insertions(+), 305 deletions(-)
+ 20 files changed, 782 insertions(+), 305 deletions(-)
 
 diff --git a/include/ui/console.h b/include/ui/console.h
-index 98feaa58bdd1a..2731895a1a696 100644
+index 98feaa58bd..2731895a1a 100644
 --- a/include/ui/console.h
 +++ b/include/ui/console.h
 @@ -420,18 +420,15 @@ int qemu_invalidate_text_consoles(void);
@@ -59,7 +59,7 @@ index 98feaa58bdd1a..2731895a1a696 100644
                                 DisplaySurface *surface,
                                 int ww, int wh);
 diff --git a/include/ui/egl-helpers.h b/include/ui/egl-helpers.h
-index acf993fcf52f3..d6061725498a9 100644
+index acf993fcf5..d606172549 100644
 --- a/include/ui/egl-helpers.h
 +++ b/include/ui/egl-helpers.h
 @@ -59,7 +59,9 @@ void egl_dmabuf_create_fence(QemuDmaBuf *dmabuf);
@@ -74,7 +74,7 @@ index acf993fcf52f3..d6061725498a9 100644
  #if defined(CONFIG_X11) || defined(CONFIG_GBM)
  
 diff --git a/include/ui/gtk.h b/include/ui/gtk.h
-index 3e6ce3cb48c7e..044cc9b99d206 100644
+index 3e6ce3cb48..044cc9b99d 100644
 --- a/include/ui/gtk.h
 +++ b/include/ui/gtk.h
 @@ -21,7 +21,7 @@
@@ -96,7 +96,7 @@ index 3e6ce3cb48c7e..044cc9b99d206 100644
      EGLContext ectx;
      EGLSurface esurface;
 diff --git a/include/ui/sdl2.h b/include/ui/sdl2.h
-index dbe6e3d9739b9..1a5dab22d0965 100644
+index dbe6e3d973..1a5dab22d0 100644
 --- a/include/ui/sdl2.h
 +++ b/include/ui/sdl2.h
 @@ -22,7 +22,7 @@
@@ -118,7 +118,7 @@ index dbe6e3d9739b9..1a5dab22d0965 100644
      egl_fb guest_fb;
      egl_fb win_fb;
 diff --git a/include/ui/spice-display.h b/include/ui/spice-display.h
-index 690ece73801e3..02cf113dcebe0 100644
+index 690ece7380..02cf113dce 100644
 --- a/include/ui/spice-display.h
 +++ b/include/ui/spice-display.h
 @@ -27,7 +27,7 @@
@@ -131,7 +131,7 @@ index 690ece73801e3..02cf113dcebe0 100644
  #  include "ui/egl-helpers.h"
  #  include "ui/egl-context.h"
 diff --git a/meson.build b/meson.build
-index d9293294d8e76..4ce0303205d27 100644
+index d9293294d8..4ce0303205 100644
 --- a/meson.build
 +++ b/meson.build
 @@ -1216,7 +1216,7 @@ if get_option('attr').allowed()
@@ -171,7 +171,7 @@ index d9293294d8e76..4ce0303205d27 100644
  config_host_data.set('CONFIG_PLUGIN', get_option('plugins'))
  config_host_data.set('CONFIG_RBD', rbd.found())
 diff --git a/qapi/ui.json b/qapi/ui.json
-index e3da77632a834..e75b568819fce 100644
+index e3da77632a..e75b568819 100644
 --- a/qapi/ui.json
 +++ b/qapi/ui.json
 @@ -1521,7 +1521,8 @@
@@ -194,7 +194,7 @@ index e3da77632a834..e75b568819fce 100644
        'sdl': { 'type': 'DisplaySDL', 'if': 'CONFIG_SDL' }
    }
 diff --git a/qemu-options.hx b/qemu-options.hx
-index fca2b7bc74f96..63983de7d26e8 100644
+index fca2b7bc74..63983de7d2 100644
 --- a/qemu-options.hx
 +++ b/qemu-options.hx
 @@ -2146,7 +2146,7 @@ DEF("display", HAS_ARG, QEMU_OPTION_display,
@@ -207,7 +207,7 @@ index fca2b7bc74f96..63983de7d26e8 100644
  #endif
  #if defined(CONFIG_DBUS_DISPLAY)
 diff --git a/ui/cocoa.m b/ui/cocoa.m
-index 6ca91a1193e0e..1a6751adf078c 100644
+index 6ca91a1193..135ceb25c0 100644
 --- a/ui/cocoa.m
 +++ b/ui/cocoa.m
 @@ -22,9 +22,12 @@
@@ -280,7 +280,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
  static NSTextField *pauseLabel;
  
  static bool allow_events;
-@@ -111,6 +101,46 @@ static void cocoa_switch(DisplayChangeListener *dcl,
+@@ -111,6 +101,58 @@ static void cocoa_switch(DisplayChangeListener *dcl,
  static QemuEvent cbevent;
  static QemuCocoaPasteboardTypeOwner *cbowner;
  
@@ -291,9 +291,9 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +
 +static GLint gl_scanout_x;
 +static GLint gl_scanout_y;
-+static GLsync gl_surface_sync;
++static GLsync gl_scanout_sync;
 +static GLuint gl_scanout_id;
-+static QEMUGLContext gl_scanout_ctx;
++static QEMUGLContext gl_ctx;
 +static bool gl_needs_display;
 +static bool gl_scanout_y_flip;
 +
@@ -322,12 +322,24 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +    .ops = &dgc_ops,
 +};
 +
++static void cocoa_gl_scanout_acquire(void)
++{
++    glWaitSync(gl_scanout_sync, 0, GL_TIMEOUT_IGNORED);
++    glDeleteSync(gl_scanout_sync);
++}
++
++static void cocoa_gl_scanout_release(void)
++{
++    gl_scanout_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
++    glFlush();
++}
++
 +#endif
 +
  // Utility functions to run specified code block with the BQL held
  typedef void (^CodeBlock)(void);
  typedef bool (^BoolCodeBlock)(void);
-@@ -178,7 +208,6 @@ static void handleAnyDeviceErrors(Error * err)
+@@ -178,7 +220,6 @@ static void handleAnyDeviceErrors(Error * err)
  @interface QemuCocoaView : NSView
  {
      QEMUScreen screen;
@@ -335,7 +347,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
      /* The state surrounding mouse grabbing is potentially confusing.
       * isAbsoluteEnabled tracks qemu_input_is_absolute() [ie "is the emulated
       *   pointing device an absolute-position one?"], but is only updated on
-@@ -197,7 +226,6 @@ @interface QemuCocoaView : NSView
+@@ -197,7 +238,6 @@ @interface QemuCocoaView : NSView
      int mouseY;
      bool mouseOn;
  }
@@ -343,7 +355,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
  - (void) grabMouse;
  - (void) ungrabMouse;
  - (void) setFullGrab:(id)sender;
-@@ -206,7 +234,6 @@ - (bool) handleEvent:(NSEvent *)event;
+@@ -206,7 +246,6 @@ - (bool) handleEvent:(NSEvent *)event;
  - (bool) handleEventLocked:(NSEvent *)event;
  - (void) notifyMouseModeChange;
  - (BOOL) isMouseGrabbed;
@@ -351,7 +363,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
  - (void) raiseAllKeys;
  @end
  
-@@ -227,6 +254,9 @@ static CGEventRef handleTapEvent(CGEventTapProxy proxy, CGEventType type, CGEven
+@@ -227,6 +266,9 @@ static CGEventRef handleTapEvent(CGEventTapProxy proxy, CGEventType type, CGEven
  
  @implementation QemuCocoaView
  - (id)initWithFrame:(NSRect)frameRect
@@ -361,7 +373,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
  {
      COCOA_DEBUG("QemuCocoaView: initWithFrame\n");
  
-@@ -253,10 +283,28 @@ - (id)initWithFrame:(NSRect)frameRect
+@@ -253,10 +295,28 @@ - (id)initWithFrame:(NSRect)frameRect
          [self setClipsToBounds:YES];
  #endif
          [self setWantsLayer:YES];
@@ -392,7 +404,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
          [[self layer] addSublayer:cursorLayer];
  
      }
-@@ -267,10 +315,6 @@ - (void) dealloc
+@@ -267,10 +327,6 @@ - (void) dealloc
  {
      COCOA_DEBUG("QemuCocoaView: dealloc\n");
  
@@ -403,7 +415,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
      if (eventsTap) {
          CFRelease(eventsTap);
      }
-@@ -286,6 +330,47 @@ - (BOOL) isOpaque
+@@ -286,6 +342,44 @@ - (BOOL) isOpaque
      return YES;
  }
  
@@ -416,7 +428,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +- (void)glDraw
 +{
 +    BQL_LOCK_GUARD();
-+    GLint filter = qatomic_read(&zoom_interpolation) ? GL_LINEAR : GL_NEAREST;
++    GLint filter = zoom_interpolation ? GL_LINEAR : GL_NEAREST;
 +    NSSize frame = [self convertSizeToBacking:[self frame].size];
 +    GLuint fb;
 +    GLuint x1 = gl_scanout_x;
@@ -432,18 +444,15 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +        y2 = gl_scanout_y + surface_height(surface);
 +    }
 +
-+    glWaitSync(gl_surface_sync, 0, GL_TIMEOUT_IGNORED);
-+    glDeleteSync(gl_surface_sync);
++    cocoa_gl_scanout_acquire();
 +    glGenFramebuffers(1, &fb);
 +    glBindFramebuffer(GL_READ_FRAMEBUFFER, fb);
 +    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 +                           GL_TEXTURE_2D, gl_scanout_id, 0);
 +    glBlitFramebuffer(x1, y1, x2, y2, 0, 0, frame.width, frame.height,
 +                      GL_COLOR_BUFFER_BIT, filter);
-+    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 +    glDeleteFramebuffers(1, &fb);
-+    glBindTexture(GL_TEXTURE_2D, 0);
-+    gl_surface_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
++    cocoa_gl_scanout_release();
 +    gl_needs_display = false;
 +}
 +#endif
@@ -451,7 +460,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
  - (void) viewDidMoveToWindow
  {
      [self resizeWindow];
-@@ -322,29 +407,43 @@ - (void) unhideCursor
+@@ -322,29 +416,43 @@ - (void) unhideCursor
      [NSCursor unhide];
  }
  
@@ -506,7 +515,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
  
      cursor_unref(cursor);
      cursor = given_cursor;
-@@ -355,9 +452,6 @@ - (void)setCursor:(QEMUCursor *)given_cursor
+@@ -355,9 +463,6 @@ - (void)setCursor:(QEMUCursor *)given_cursor
  
      cursor_ref(cursor);
  
@@ -516,7 +525,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
      provider = CGDataProviderCreateWithData(
          NULL,
          cursor->data,
-@@ -382,8 +476,8 @@ - (void)setCursor:(QEMUCursor *)given_cursor
+@@ -382,8 +487,8 @@ - (void)setCursor:(QEMUCursor *)given_cursor
      CGDataProviderRelease(provider);
      [CATransaction begin];
      [CATransaction setDisableActions:YES];
@@ -526,7 +535,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
      [CATransaction commit];
      CGImageRelease(image);
  }
-@@ -394,61 +488,58 @@ - (void) drawRect:(NSRect) rect
+@@ -394,61 +499,58 @@ - (void) drawRect:(NSRect) rect
  
      // get CoreGraphic context
      CGContextRef viewContextRef = [[NSGraphicsContext currentContext] CGContext];
@@ -636,7 +645,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
  }
  
  - (NSSize)fixAspectRatio:(NSSize)max
-@@ -515,9 +606,15 @@ - (void) resizeWindow
+@@ -515,9 +617,15 @@ - (void) resizeWindow
      }
  }
  
@@ -654,7 +663,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
  }
  
  #pragma clang diagnostic push
-@@ -590,28 +687,17 @@ - (void) updateUIInfo
+@@ -590,28 +698,17 @@ - (void) updateUIInfo
      });
  }
  
@@ -687,7 +696,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
  }
  
  - (void) setFullGrab:(id)sender
-@@ -1102,7 +1188,6 @@ - (void) notifyMouseModeChange {
+@@ -1102,7 +1199,6 @@ - (void) notifyMouseModeChange {
      }
  }
  - (BOOL) isMouseGrabbed {return isMouseGrabbed;}
@@ -695,7 +704,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
  
  /*
   * Makes the target think all down keys are being released.
-@@ -1156,7 +1241,11 @@ - (void)adjustSpeed:(id)sender;
+@@ -1156,7 +1252,11 @@ - (void)adjustSpeed:(id)sender;
  @end
  
  @implementation QemuCocoaAppController
@@ -707,7 +716,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
  {
      NSWindow *window;
  
-@@ -1164,16 +1253,21 @@ - (id) init
+@@ -1164,16 +1264,21 @@ - (id) init
  
      self = [super init];
      if (self) {
@@ -731,7 +740,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
              styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskClosable
              backing:NSBackingStoreBuffered defer:NO];
          if(!window) {
-@@ -1267,7 +1361,7 @@ - (void)windowDidExitFullScreen:(NSNotification *)notification
+@@ -1267,7 +1372,7 @@ - (void)windowDidExitFullScreen:(NSNotification *)notification
  
  - (void)windowDidResize:(NSNotification *)notification
  {
@@ -740,7 +749,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
      [cocoaView updateUIInfo];
  }
  
-@@ -1367,13 +1461,9 @@ - (void)zoomToFit:(id) sender
+@@ -1367,13 +1472,9 @@ - (void)zoomToFit:(id) sender
  
  - (void)toggleZoomInterpolation:(id) sender
  {
@@ -751,13 +760,13 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 -        zoom_interpolation = kCGInterpolationNone;
 -        [sender setState: NSControlStateValueOff];
 -    }
-+    qatomic_set(&zoom_interpolation, !zoom_interpolation);
++    zoom_interpolation = !zoom_interpolation;
 +    [sender setState:zoom_interpolation ? NSControlStateValueOn :
 +                                          NSControlStateValueOff];
  }
  
  /* Displays the console on the screen */
-@@ -1641,7 +1731,7 @@ static void create_initial_menus(void)
+@@ -1641,7 +1742,7 @@ static void create_initial_menus(void)
      [menuItem setState: [[cocoaView window] styleMask] & NSWindowStyleMaskResizable ? NSControlStateValueOn : NSControlStateValueOff];
      [menu addItem: menuItem];
      menuItem = [[[NSMenuItem alloc] initWithTitle:@"Zoom Interpolation" action:@selector(toggleZoomInterpolation:) keyEquivalent:@""] autorelease];
@@ -766,7 +775,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
      [menu addItem: menuItem];
      menuItem = [[[NSMenuItem alloc] initWithTitle:@"View" action:nil keyEquivalent:@""] autorelease];
      [menuItem setSubmenu:menu];
-@@ -1903,29 +1993,28 @@ static int cocoa_main(void)
+@@ -1903,29 +2004,28 @@ static int cocoa_main(void)
  static void cocoa_update(DisplayChangeListener *dcl,
                           int x, int y, int w, int h)
  {
@@ -805,7 +814,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
      });
  }
  
-@@ -1965,9 +2054,296 @@ static void cocoa_cursor_define(DisplayChangeListener *dcl, QEMUCursor *cursor)
+@@ -1965,9 +2065,294 @@ static void cocoa_cursor_define(DisplayChangeListener *dcl, QEMUCursor *cursor)
      });
  }
  
@@ -833,7 +842,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +- (CGLContextObj)copyCGLContextForPixelFormat:(CGLPixelFormatObj)pf
 +{
 +    CGLContextObj ctx;
-+    CGLCreateContext(pf, gl_scanout_ctx, &ctx);
++    CGLCreateContext(pf, gl_ctx, &ctx);
 +    return ctx;
 +}
 +
@@ -867,12 +876,12 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +}
 +@end
 +
-+static void with_gl_scanout_ctx(CodeBlock block)
++static void with_gl_ctx(CodeBlock block)
 +{
 +#ifdef CONFIG_EGL
 +    if (gl_view_ctx) {
 +        eglMakeCurrent(qemu_egl_display, EGL_NO_SURFACE,
-+                       EGL_NO_SURFACE, gl_scanout_ctx);
++                       EGL_NO_SURFACE, gl_ctx);
 +        block();
 +        eglMakeCurrent(qemu_egl_display, EGL_NO_SURFACE,
 +                       EGL_NO_SURFACE, EGL_NO_CONTEXT);
@@ -880,20 +889,9 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +    }
 +#endif
 +
-+    CGLSetCurrentContext((CGLContextObj)gl_scanout_ctx);
++    CGLSetCurrentContext((CGLContextObj)gl_ctx);
 +    block();
 +    CGLSetCurrentContext(NULL);
-+}
-+
-+static void with_gl_surface(CodeBlock block)
-+{
-+    with_gl_scanout_ctx(^{
-+        glWaitSync(gl_surface_sync, 0, GL_TIMEOUT_IGNORED);
-+        glDeleteSync(gl_surface_sync);
-+        block();
-+        gl_surface_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-+        glFlush();
-+    });
 +}
 +
 +static CGLPixelFormatObj cocoa_gl_create_cgl_pixel_format(int bpp)
@@ -938,7 +936,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +        QEMUGLContext egl;
 +
 +        eglMakeCurrent(qemu_egl_display, EGL_NO_SURFACE,
-+                       EGL_NO_SURFACE, gl_scanout_ctx);
++                       EGL_NO_SURFACE, gl_ctx);
 +        egl = qemu_egl_create_context(dgc, params);
 +        eglMakeCurrent(qemu_egl_display, EGL_NO_SURFACE,
 +                       EGL_NO_SURFACE, EGL_NO_CONTEXT);
@@ -949,7 +947,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +
 +    bpp = PIXMAN_FORMAT_BPP(surface_format(surface));
 +    format = cocoa_gl_create_cgl_pixel_format(bpp);
-+    CGLCreateContext(format, gl_scanout_ctx, &ctx);
++    CGLCreateContext(format, gl_ctx, &ctx);
 +    CGLDestroyPixelFormat(format);
 +
 +    return (QEMUGLContext)ctx;
@@ -1013,8 +1011,10 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +static void cocoa_gl_update(DisplayChangeListener *dcl,
 +                            int x, int y, int w, int h)
 +{
-+    with_gl_surface(^{
++    with_gl_ctx(^{
++        cocoa_gl_scanout_acquire();
 +        surface_gl_update_texture(surface, x, y, w, h);
++        cocoa_gl_scanout_release();
 +    });
 +
 +    cocoa_gl_dispatch_display();
@@ -1023,9 +1023,11 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +static void cocoa_gl_switch(DisplayChangeListener *dcl,
 +                            DisplaySurface *new_surface)
 +{
-+    with_gl_surface(^{
++    with_gl_ctx(^{
++        cocoa_gl_scanout_acquire();
 +        surface_gl_destroy_texture(surface);
 +        surface_gl_create_texture(new_surface);
++        cocoa_gl_scanout_release();
 +    });
 +
 +    gl_scanout_id = new_surface->texture;
@@ -1048,6 +1050,8 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +                                     uint32_t w, uint32_t h,
 +                                     void *d3d_tex2d)
 +{
++    cocoa_gl_scanout_acquire();
++
 +    gl_scanout_id = backing_id;
 +#ifdef CONFIG_EGL
 +    gl_scanout_y_flip = gl_view_ctx ? backing_y_0_top : !backing_y_0_top;
@@ -1056,13 +1060,16 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +#endif
 +    gl_scanout_x = x;
 +    gl_scanout_y = backing_y_0_top ? backing_height - h - y : y;
++
++    cocoa_gl_scanout_release();
 +}
 +
 +static void cocoa_gl_scanout_flush(DisplayChangeListener *dcl,
 +                                   uint32_t x, uint32_t y,
 +                                   uint32_t w, uint32_t h)
 +{
-+    glFlush();
++    cocoa_gl_scanout_acquire();
++    cocoa_gl_scanout_release();
 +    cocoa_gl_dispatch_display();
 +}
 +
@@ -1102,7 +1109,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
  
      COCOA_DEBUG("qemu_cocoa: cocoa_display_init\n");
  
-@@ -1978,10 +2354,89 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -1978,10 +2363,89 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
  
      [QemuApplication sharedApplication];
  
@@ -1134,13 +1141,13 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +                exit(1);
 +            }
 +
-+            gl_view_ctx = qemu_egl_init_ctx();
-+            if (!gl_view_ctx) {
++            gl_ctx = qemu_egl_init_ctx();
++            if (!gl_ctx) {
 +                exit(1);
 +            }
 +
-+            gl_scanout_ctx = qemu_egl_create_context(&dgc, &params);
-+            if (!gl_scanout_ctx) {
++            gl_view_ctx = qemu_egl_create_context(&dgc, &params);
++            if (!gl_view_ctx) {
 +                exit(1);
 +            }
 +
@@ -1162,14 +1169,14 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +            CGLContextObj ctx;
 +            CGLCreateContext(format, NULL, &ctx);
 +            CGLDestroyPixelFormat(format);
-+            gl_scanout_ctx = (QEMUGLContext)ctx;
++            gl_ctx = (QEMUGLContext)ctx;
 +#ifdef CONFIG_EGL
 +            gl_view_ctx = EGL_NO_CONTEXT;
 +#endif
 +        }
 +
-+        with_gl_scanout_ctx(^{
-+            gl_surface_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
++        with_gl_ctx(^{
++            cocoa_gl_scanout_release();
 +        });
 +
 +        dcl.ops = &dcl_gl_ops;
@@ -1193,7 +1200,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
      /* if fullscreen mode is to be used */
      if (opts->has_full_screen && opts->full_screen) {
          [[cocoaView window] toggleFullScreen: nil];
-@@ -2005,9 +2460,8 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -2005,9 +2469,8 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
          [cocoaView window].styleMask |= NSWindowStyleMaskResizable;
      }
  
@@ -1205,7 +1212,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
  
      create_initial_menus();
      /*
-@@ -2020,9 +2474,6 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -2020,9 +2483,6 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
      add_console_menu_entries();
      addRemovableDevicesMenuItems();
  
@@ -1215,7 +1222,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
      // register vga output callbacks
      register_displaychangelistener(&dcl);
      qemu_add_mouse_mode_change_notifier(&mouse_mode_change_notifier);
-@@ -2044,6 +2495,7 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -2044,6 +2504,7 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
  
  static QemuDisplay qemu_display_cocoa = {
      .type       = DISPLAY_TYPE_COCOA,
@@ -1223,7 +1230,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
      .init       = cocoa_display_init,
  };
  
-@@ -2053,3 +2505,7 @@ static void register_cocoa(void)
+@@ -2053,3 +2514,7 @@ static void register_cocoa(void)
  }
  
  type_init(register_cocoa);
@@ -1232,7 +1239,7 @@ index 6ca91a1193e0e..1a6751adf078c 100644
 +module_dep("ui-opengl");
 +#endif
 diff --git a/ui/console-gl.c b/ui/console-gl.c
-index 403fc36fbdf23..5eb3c8a17858e 100644
+index 403fc36fbd..5eb3c8a178 100644
 --- a/ui/console-gl.c
 +++ b/ui/console-gl.c
 @@ -44,10 +44,8 @@ bool console_gl_check_format(DisplayChangeListener *dcl,
@@ -1247,7 +1254,7 @@ index 403fc36fbdf23..5eb3c8a17858e 100644
      assert(QEMU_IS_ALIGNED(surface_stride(surface), surface_bytes_per_pixel(surface)));
  
      if (surface->texture) {
-@@ -144,14 +142,11 @@ bool surface_gl_create_texture_from_fd(DisplaySurface *surface,
+@@ -144,14 +142,11 @@ cleanup_mem:
      return false;
  }
  
@@ -1274,7 +1281,7 @@ index 403fc36fbdf23..5eb3c8a17858e 100644
      if (!surface || !surface->texture) {
          return;
 diff --git a/ui/console.c b/ui/console.c
-index 2d00828c5382e..4c8d9f1c617af 100644
+index 2d00828c53..4c8d9f1c61 100644
 --- a/ui/console.c
 +++ b/ui/console.c
 @@ -1487,12 +1487,7 @@ void qemu_console_resize(QemuConsole *s, int width, int height)
@@ -1292,7 +1299,7 @@ index 2d00828c5382e..4c8d9f1c617af 100644
  
  PixelFormat qemu_default_pixelformat(int bpp)
 diff --git a/ui/dbus.c b/ui/dbus.c
-index d2dff332585e3..975bc6a0c9413 100644
+index d2dff33258..975bc6a0c9 100644
 --- a/ui/dbus.c
 +++ b/ui/dbus.c
 @@ -63,20 +63,20 @@ dbus_is_compatible_dcl(DisplayGLCtx *dgc,
@@ -1340,7 +1347,7 @@ index d2dff332585e3..975bc6a0c9413 100644
  }
  
 diff --git a/ui/egl-helpers.c b/ui/egl-helpers.c
-index e3f2872cc14be..89662214196ab 100644
+index e3f2872cc1..8966221419 100644
 --- a/ui/egl-helpers.c
 +++ b/ui/egl-helpers.c
 @@ -25,6 +25,12 @@
@@ -1561,7 +1568,7 @@ index e3f2872cc14be..89662214196ab 100644
  }
  #endif
 diff --git a/ui/gtk-egl.c b/ui/gtk-egl.c
-index ae9239999cdb6..8844eca0e8a81 100644
+index ae9239999c..8844eca0e8 100644
 --- a/ui/gtk-egl.c
 +++ b/ui/gtk-egl.c
 @@ -36,8 +36,8 @@ static void gtk_egl_set_scanout_mode(VirtualConsole *vc, bool scanout)
@@ -1625,7 +1632,7 @@ index ae9239999cdb6..8844eca0e8a81 100644
  
      if (resized) {
 diff --git a/ui/gtk-gl-area.c b/ui/gtk-gl-area.c
-index cd86022d264a2..0f00c4ac9a8af 100644
+index cd86022d26..0f00c4ac9a 100644
 --- a/ui/gtk-gl-area.c
 +++ b/ui/gtk-gl-area.c
 @@ -29,8 +29,8 @@ static void gtk_gl_area_set_scanout_mode(VirtualConsole *vc, bool scanout)
@@ -1675,7 +1682,7 @@ index cd86022d264a2..0f00c4ac9a8af 100644
      vc->gfx.ds = surface;
  
 diff --git a/ui/gtk.c b/ui/gtk.c
-index 48571bedbf5a7..559c2ae12ca43 100644
+index 48571bedbf..559c2ae12c 100644
 --- a/ui/gtk.c
 +++ b/ui/gtk.c
 @@ -342,7 +342,7 @@ static void gd_update_full_redraw(VirtualConsole *vc)
@@ -1786,7 +1793,7 @@ index 48571bedbf5a7..559c2ae12ca43 100644
  module_dep("ui-opengl");
  #endif
 diff --git a/ui/meson.build b/ui/meson.build
-index 6371422c46046..42a0d25325b3b 100644
+index 6371422c46..42a0d25325 100644
 --- a/ui/meson.build
 +++ b/ui/meson.build
 @@ -58,15 +58,16 @@ system_ss.add(opengl)
@@ -1831,7 +1838,7 @@ index 6371422c46046..42a0d25325b3b 100644
    ui_modules += {'sdl' : sdl_ss}
  endif
 diff --git a/ui/sdl2-gl.c b/ui/sdl2-gl.c
-index 3be17d1079afa..ef091b471df87 100644
+index 3be17d1079..ef091b471d 100644
 --- a/ui/sdl2-gl.c
 +++ b/ui/sdl2-gl.c
 @@ -40,8 +40,8 @@ static void sdl2_set_scanout_mode(struct sdl2_console *scon, bool scanout)
@@ -1873,7 +1880,7 @@ index 3be17d1079afa..ef091b471df87 100644
  
  void sdl2_gl_refresh(DisplayChangeListener *dcl)
 diff --git a/ui/sdl2.c b/ui/sdl2.c
-index 032dc14bc3988..1b124041d7612 100644
+index 032dc14bc3..1b124041d7 100644
 --- a/ui/sdl2.c
 +++ b/ui/sdl2.c
 @@ -93,7 +93,7 @@ void sdl2_window_create(struct sdl2_console *scon)
@@ -1930,7 +1937,7 @@ index 032dc14bc3988..1b124041d7612 100644
  module_dep("ui-opengl");
  #endif
 diff --git a/ui/spice-display.c b/ui/spice-display.c
-index db71e866f89ff..c076450d862bb 100644
+index db71e866f8..c076450d86 100644
 --- a/ui/spice-display.c
 +++ b/ui/spice-display.c
 @@ -889,7 +889,7 @@ static void spice_gl_update(DisplayChangeListener *dcl,
@@ -1990,214 +1997,6 @@ index db71e866f89ff..c076450d862bb 100644
              return;
          }
  
-From 99018381038670f49078eb1613c1752637830852 Mon Sep 17 00:00:00 2001
-From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
-Date: Wed, 24 Dec 2025 10:56:45 +0900
-Subject: ui/cocoa: Use qemu_input_map_osx_to_qcode
-
-ui/cocoa used to have a conversion table from macOS keycode to QKeyCode.
-It is an unnecessary redundancy as ui/input-keymap.c already has such a
-table. Worse, I added an incorrect mapping of kVK_JIS_Eisu and
-kVK_JIS_Kana with commit 708b72557ff5 ("ui/cocoa: Support unique keys of
-JIS keyboards").
-
-According to the following documentations, the definitions in
-ui/keycodemapdb/keymaps.csv, which ui/input-keymap.c uses, are correct:
-https://developer.apple.com/documentation/uikit/uikeyboardhidusage/uikeyboardhidusagekeyboardlang1?language=objc
-https://developer.apple.com/documentation/uikit/uikeyboardhidusage/uikeyboardhidusagekeyboardlang2?language=objc
-https://docs.microsoft.com/en-us/windows-hardware/design/component-guidelines/keyboard-japan-ime
-
-Use qemu_input_map_osx_to_qcode to eliminate the redundancy and
-incorrect mappings.
-
-Fixes: 708b72557ff5 ("ui/cocoa: Support unique keys of JIS keyboards")
-Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
-
-diff --git a/ui/cocoa.m b/ui/cocoa.m
-index 23b7a736d7..2f982b523c 100644
---- a/ui/cocoa.m
-+++ b/ui/cocoa.m
-@@ -142,138 +142,13 @@ static bool bool_with_bql(BoolCodeBlock block)
-     return val;
- }
- 
--// Mac to QKeyCode conversion
--static const int mac_to_qkeycode_map[] = {
--    [kVK_ANSI_A] = Q_KEY_CODE_A,
--    [kVK_ANSI_B] = Q_KEY_CODE_B,
--    [kVK_ANSI_C] = Q_KEY_CODE_C,
--    [kVK_ANSI_D] = Q_KEY_CODE_D,
--    [kVK_ANSI_E] = Q_KEY_CODE_E,
--    [kVK_ANSI_F] = Q_KEY_CODE_F,
--    [kVK_ANSI_G] = Q_KEY_CODE_G,
--    [kVK_ANSI_H] = Q_KEY_CODE_H,
--    [kVK_ANSI_I] = Q_KEY_CODE_I,
--    [kVK_ANSI_J] = Q_KEY_CODE_J,
--    [kVK_ANSI_K] = Q_KEY_CODE_K,
--    [kVK_ANSI_L] = Q_KEY_CODE_L,
--    [kVK_ANSI_M] = Q_KEY_CODE_M,
--    [kVK_ANSI_N] = Q_KEY_CODE_N,
--    [kVK_ANSI_O] = Q_KEY_CODE_O,
--    [kVK_ANSI_P] = Q_KEY_CODE_P,
--    [kVK_ANSI_Q] = Q_KEY_CODE_Q,
--    [kVK_ANSI_R] = Q_KEY_CODE_R,
--    [kVK_ANSI_S] = Q_KEY_CODE_S,
--    [kVK_ANSI_T] = Q_KEY_CODE_T,
--    [kVK_ANSI_U] = Q_KEY_CODE_U,
--    [kVK_ANSI_V] = Q_KEY_CODE_V,
--    [kVK_ANSI_W] = Q_KEY_CODE_W,
--    [kVK_ANSI_X] = Q_KEY_CODE_X,
--    [kVK_ANSI_Y] = Q_KEY_CODE_Y,
--    [kVK_ANSI_Z] = Q_KEY_CODE_Z,
--
--    [kVK_ANSI_0] = Q_KEY_CODE_0,
--    [kVK_ANSI_1] = Q_KEY_CODE_1,
--    [kVK_ANSI_2] = Q_KEY_CODE_2,
--    [kVK_ANSI_3] = Q_KEY_CODE_3,
--    [kVK_ANSI_4] = Q_KEY_CODE_4,
--    [kVK_ANSI_5] = Q_KEY_CODE_5,
--    [kVK_ANSI_6] = Q_KEY_CODE_6,
--    [kVK_ANSI_7] = Q_KEY_CODE_7,
--    [kVK_ANSI_8] = Q_KEY_CODE_8,
--    [kVK_ANSI_9] = Q_KEY_CODE_9,
--
--    [kVK_ANSI_Grave] = Q_KEY_CODE_GRAVE_ACCENT,
--    [kVK_ANSI_Minus] = Q_KEY_CODE_MINUS,
--    [kVK_ANSI_Equal] = Q_KEY_CODE_EQUAL,
--    [kVK_Delete] = Q_KEY_CODE_BACKSPACE,
--    [kVK_CapsLock] = Q_KEY_CODE_CAPS_LOCK,
--    [kVK_Tab] = Q_KEY_CODE_TAB,
--    [kVK_Return] = Q_KEY_CODE_RET,
--    [kVK_ANSI_LeftBracket] = Q_KEY_CODE_BRACKET_LEFT,
--    [kVK_ANSI_RightBracket] = Q_KEY_CODE_BRACKET_RIGHT,
--    [kVK_ANSI_Backslash] = Q_KEY_CODE_BACKSLASH,
--    [kVK_ANSI_Semicolon] = Q_KEY_CODE_SEMICOLON,
--    [kVK_ANSI_Quote] = Q_KEY_CODE_APOSTROPHE,
--    [kVK_ANSI_Comma] = Q_KEY_CODE_COMMA,
--    [kVK_ANSI_Period] = Q_KEY_CODE_DOT,
--    [kVK_ANSI_Slash] = Q_KEY_CODE_SLASH,
--    [kVK_Space] = Q_KEY_CODE_SPC,
--
--    [kVK_ANSI_Keypad0] = Q_KEY_CODE_KP_0,
--    [kVK_ANSI_Keypad1] = Q_KEY_CODE_KP_1,
--    [kVK_ANSI_Keypad2] = Q_KEY_CODE_KP_2,
--    [kVK_ANSI_Keypad3] = Q_KEY_CODE_KP_3,
--    [kVK_ANSI_Keypad4] = Q_KEY_CODE_KP_4,
--    [kVK_ANSI_Keypad5] = Q_KEY_CODE_KP_5,
--    [kVK_ANSI_Keypad6] = Q_KEY_CODE_KP_6,
--    [kVK_ANSI_Keypad7] = Q_KEY_CODE_KP_7,
--    [kVK_ANSI_Keypad8] = Q_KEY_CODE_KP_8,
--    [kVK_ANSI_Keypad9] = Q_KEY_CODE_KP_9,
--    [kVK_ANSI_KeypadDecimal] = Q_KEY_CODE_KP_DECIMAL,
--    [kVK_ANSI_KeypadEnter] = Q_KEY_CODE_KP_ENTER,
--    [kVK_ANSI_KeypadPlus] = Q_KEY_CODE_KP_ADD,
--    [kVK_ANSI_KeypadMinus] = Q_KEY_CODE_KP_SUBTRACT,
--    [kVK_ANSI_KeypadMultiply] = Q_KEY_CODE_KP_MULTIPLY,
--    [kVK_ANSI_KeypadDivide] = Q_KEY_CODE_KP_DIVIDE,
--    [kVK_ANSI_KeypadEquals] = Q_KEY_CODE_KP_EQUALS,
--    [kVK_ANSI_KeypadClear] = Q_KEY_CODE_NUM_LOCK,
--
--    [kVK_UpArrow] = Q_KEY_CODE_UP,
--    [kVK_DownArrow] = Q_KEY_CODE_DOWN,
--    [kVK_LeftArrow] = Q_KEY_CODE_LEFT,
--    [kVK_RightArrow] = Q_KEY_CODE_RIGHT,
--
--    [kVK_Help] = Q_KEY_CODE_INSERT,
--    [kVK_Home] = Q_KEY_CODE_HOME,
--    [kVK_PageUp] = Q_KEY_CODE_PGUP,
--    [kVK_PageDown] = Q_KEY_CODE_PGDN,
--    [kVK_End] = Q_KEY_CODE_END,
--    [kVK_ForwardDelete] = Q_KEY_CODE_DELETE,
--
--    [kVK_Escape] = Q_KEY_CODE_ESC,
--
--    /* The Power key can't be used directly because the operating system uses
--     * it. This key can be emulated by using it in place of another key such as
--     * F1. Don't forget to disable the real key binding.
--     */
--    /* [kVK_F1] = Q_KEY_CODE_POWER, */
--
--    [kVK_F1] = Q_KEY_CODE_F1,
--    [kVK_F2] = Q_KEY_CODE_F2,
--    [kVK_F3] = Q_KEY_CODE_F3,
--    [kVK_F4] = Q_KEY_CODE_F4,
--    [kVK_F5] = Q_KEY_CODE_F5,
--    [kVK_F6] = Q_KEY_CODE_F6,
--    [kVK_F7] = Q_KEY_CODE_F7,
--    [kVK_F8] = Q_KEY_CODE_F8,
--    [kVK_F9] = Q_KEY_CODE_F9,
--    [kVK_F10] = Q_KEY_CODE_F10,
--    [kVK_F11] = Q_KEY_CODE_F11,
--    [kVK_F12] = Q_KEY_CODE_F12,
--    [kVK_F13] = Q_KEY_CODE_PRINT,
--    [kVK_F14] = Q_KEY_CODE_SCROLL_LOCK,
--    [kVK_F15] = Q_KEY_CODE_PAUSE,
--
--    // JIS keyboards only
--    [kVK_JIS_Yen] = Q_KEY_CODE_YEN,
--    [kVK_JIS_Underscore] = Q_KEY_CODE_RO,
--    [kVK_JIS_KeypadComma] = Q_KEY_CODE_KP_COMMA,
--    [kVK_JIS_Eisu] = Q_KEY_CODE_MUHENKAN,
--    [kVK_JIS_Kana] = Q_KEY_CODE_HENKAN,
--
--    /*
--     * The eject and volume keys can't be used here because they are handled at
--     * a lower level than what an Application can see.
--     */
--};
--
- static int cocoa_keycode_to_qemu(int keycode)
- {
--    if (ARRAY_SIZE(mac_to_qkeycode_map) <= keycode) {
-+    if (qemu_input_map_osx_to_qcode_len <= keycode) {
-         error_report("(cocoa) warning unknown keycode 0x%x", keycode);
-         return 0;
-     }
--    return mac_to_qkeycode_map[keycode];
-+    return qemu_input_map_osx_to_qcode[keycode];
- }
- 
- /* Displays an alert dialog box with the specified message */
--- 
-2.50.1 (Apple Git-155)
-
-From a4afdae1877f875e63a24514f9baa2a6d742591e Mon Sep 17 00:00:00 2001
-From: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
-Date: Wed, 24 Dec 2025 10:56:56 +0900
-Subject: ui/cocoa: Do not automatically zoom for HiDPI
-
-Cocoa automatically zooms for a HiDPI display like Retina and makes
-the display blurry. Revert the automatic zooming.
-
-Signed-off-by: Akihiko Odaki <odaki@rsg.ci.i.u-tokyo.ac.jp>
-
-diff --git a/ui/cocoa.m b/ui/cocoa.m
-index 2f982b523c..6ca91a1193 100644
---- a/ui/cocoa.m
-+++ b/ui/cocoa.m
-@@ -502,7 +504,10 @@ - (void) resizeWindow
-     [[self window] setContentAspectRatio:NSMakeSize(screen.width, screen.height)];
- 
-     if (!([[self window] styleMask] & NSWindowStyleMaskResizable)) {
--        [[self window] setContentSize:NSMakeSize(screen.width, screen.height)];
-+        CGFloat width = screen.width / [[self window] backingScaleFactor];
-+        CGFloat height = screen.height / [[self window] backingScaleFactor];
-+
-+        [[self window] setContentSize:NSMakeSize(width, height)];
-         [[self window] center];
-     } else if ([[self window] styleMask] & NSWindowStyleMaskFullScreen) {
-         [[self window] setContentSize:[self fixAspectRatio:[self screenSafeAreaSize]]];
-@@ -560,8 +565,8 @@ - (void) updateUIInfoLocked
- 
-     info.xoff = 0;
-     info.yoff = 0;
--    info.width = frameSize.width;
--    info.height = frameSize.height;
-+    info.width = frameSize.width * [[self window] backingScaleFactor];
-+    info.height = frameSize.height * [[self window] backingScaleFactor];
- 
-     dpy_set_ui_info(dcl.con, &info, TRUE);
- }
 -- 
 2.50.1 (Apple Git-155)
 
