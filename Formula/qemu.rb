@@ -65,6 +65,11 @@ class Qemu < Formula
     ohai "Applying VirGL 3D macOS texture borrowing patch..."
     system "patch", "-p1", "--batch", "--verbose", "-i", patch_texture_borrowing
 
+    # Apply GPU spike and resolution fixes for texture-borrowing
+    patch_gpu_fix = "#{__dir__}/../patches/gpu-spike-resolution-fix.patch"
+    ohai "Applying GPU spike and resolution fixes..."
+    system "patch", "-p1", "--batch", "--verbose", "-i", patch_gpu_fix
+
     # Apply NSOpenGLContext fix for Desktop GL (gl=core)
     # NOTE: Disabled - conflicts with current upstream QEMU
     # patch_nsopengl = "#{__dir__}/../patches/qemu-virgl3d-macos-nsopengl.patch"
