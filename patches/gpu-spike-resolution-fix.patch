@@ -1,15 +1,16 @@
 --- a/ui/cocoa.m	2026-01-13 20:17:13
 +++ b/ui/cocoa.m	2026-01-13 20:16:42
-@@ -2328,6 +2328,8 @@
-     if (cocoa_gl_trace_enabled()) {
-         glFlush();
-         cocoa_gl_log_error("render end");
-+    /* Clear dirty flag after render completes to prevent GPU spikes */
+@@ -2320,6 +2320,9 @@ static void cocoa_gl_render(void)
+ {
+     NSSize size = [cocoaView convertSizeToBacking:[cocoaView frame].size];
+     GLint filter = qatomic_read(&zoom_interpolation) ? GL_LINEAR : GL_NEAREST;
++    /* Clear dirty flag at start to allow next render to be queued sooner */
++    /* This keeps GPU constantly busy with useful work */
 +    gl_dirty = false;
-     }
- }
  
-@@ -2336,7 +2338,6 @@
+     if (cocoa_gl_trace_enabled()) {
+         cocoa_gl_log("render start size=%.0fx%.0f dirty=%d scanout=%d filter=%s",
+@@ -2336,7 +2339,6 @@ static void cocoa_gl_refresh(DisplayChangeListener *dcl)
      cocoa_refresh(dcl);
  
      if (gl_dirty) {
@@ -17,13 +18,3 @@
  
          if (cocoa_gl_trace_enabled()) {
              cocoa_gl_log("refresh: triggering render dirty scanout=%d egl_surface=%d",
-@@ -2357,6 +2358,9 @@
- #endif
- 
-         dispatch_async(dispatch_get_main_queue(), ^{
-+            /* Sync drawable size with backing store to fix resolution issues */
-+            [(QemuCGLLayer *)[cocoaView layer] setDrawableSize:
-+                [cocoaView convertSizeToBacking:[cocoaView frame].size]];
-             [[cocoaView layer] setNeedsDisplay];
-         });
-     }
