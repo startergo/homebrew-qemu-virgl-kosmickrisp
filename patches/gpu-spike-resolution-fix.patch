@@ -1,31 +1,15 @@
-<<<<<<< HEAD
-diff --git a/ui/cocoa.m b/ui/cocoa.m
-index xxxxxxx..xxxxxxx 100644
---- a/ui/cocoa.m
-+++ b/ui/cocoa.m
-@@ -2331,6 +2331,8 @@ static void cocoa_gl_render(void)
-         glFlush();
-         cocoa_gl_log_error("render end");
-     }
-=======
 --- a/ui/cocoa.m	2026-01-13 20:17:13
 +++ b/ui/cocoa.m	2026-01-13 20:16:42
 @@ -2328,6 +2328,8 @@
      if (cocoa_gl_trace_enabled()) {
          glFlush();
          cocoa_gl_log_error("render end");
->>>>>>> 5fb8bbd (Add GPU spike and resolution fixes for texture-borrowing mode)
 +    /* Clear dirty flag after render completes to prevent GPU spikes */
 +    gl_dirty = false;
      }
  }
  
-<<<<<<< HEAD
- static void cocoa_gl_refresh(DisplayChangeListener *dcl)
-@@ -2340,7 +2342,6 @@ static void cocoa_gl_refresh(DisplayChangeListener *dcl)
-=======
 @@ -2336,7 +2338,6 @@
->>>>>>> 5fb8bbd (Add GPU spike and resolution fixes for texture-borrowing mode)
      cocoa_refresh(dcl);
  
      if (gl_dirty) {
