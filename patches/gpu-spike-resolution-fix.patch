@@ -2,26 +2,16 @@ diff --git a/ui/cocoa.m b/ui/cocoa.m
 index xxxxxxx..xxxxxxx 100644
 --- a/ui/cocoa.m
 +++ b/ui/cocoa.m
-@@ -225,6 +225,10 @@
-              displayTime:(const CVTimeStamp *)ts
- {
-     CGLSetCurrentContext(ctx);
-+
-+    /* Sync drawable size with backing store to fix resolution issues */
-+    NSSize size = [cocoaView convertSizeToBacking:[cocoaView frame].size];
-+    [self setDrawableSize:size];
-     
-     BQL_LOCK_GUARD();
-     cocoa_gl_render();
-@@ -2329,6 +2333,7 @@
+@@ -2331,6 +2331,8 @@ static void cocoa_gl_render(void)
          glFlush();
          cocoa_gl_log_error("render end");
      }
++    /* Clear dirty flag after render completes to prevent GPU spikes */
 +    gl_dirty = false;
  }
  
  static void cocoa_gl_refresh(DisplayChangeListener *dcl)
-@@ -2336,7 +2341,6 @@
+@@ -2340,7 +2342,6 @@ static void cocoa_gl_refresh(DisplayChangeListener *dcl)
      cocoa_refresh(dcl);
  
      if (gl_dirty) {
