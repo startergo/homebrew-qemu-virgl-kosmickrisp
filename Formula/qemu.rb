@@ -5,7 +5,7 @@ class Qemu < Formula
 
   version "1.0.23"
   url "https://github.com/startergo/homebrew-qemu-virgl-kosmickrisp/archive/refs/tags/v1.0.23.tar.gz"
-  sha256 "575cf0f7554edd3a271b2ff4459bfb215197520cadfed4c7e7162266ed7ec85c"
+  sha256 "fe64c373cbffbd84044a5c74bb51371c56dbdb093f01e4f26fffd29b0b6e7c75"
   head "https://gitlab.com/qemu-project/qemu.git", branch: "master"
 
   bottle do
