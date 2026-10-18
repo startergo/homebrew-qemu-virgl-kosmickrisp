@@ -13,8 +13,19 @@ QEMU is a free and open-source emulator and virtualizer that can perform hardwar
 ### From Bottle (Recommended - Pre-built Binary)
 
 ```bash
-# Tap the repository
+# Homebrew 6+ requires trusting non-official taps before use. Trust BEFORE
+# tapping (brew tap validates formulae at tap time). Include the dependency
+# taps: virglrenderer, angle, libepoxy, and gn (needed when ANGLE builds
+# from source).
+brew trust startergo/qemu-virgl-kosmickrisp startergo/virglrenderer \
+  startergo/angle startergo/libepoxy startergo/gn
+
+# Tap the repositories
 brew tap startergo/qemu-virgl-kosmickrisp
+brew tap startergo/virglrenderer
+brew tap startergo/angle
+brew tap startergo/libepoxy
+brew tap startergo/gn
 
 # Install qemu (downloads pre-built bottle)
 brew install startergo/qemu-virgl-kosmickrisp/qemu
@@ -25,10 +36,7 @@ brew install startergo/qemu-virgl-kosmickrisp/qemu
 Build from source if you need to modify the formula, apply custom patches, or the bottle is unavailable for your macOS version:
 
 ```bash
-# Tap the repository
-brew tap startergo/qemu-virgl-kosmickrisp
-
-# Install and build from source
+# Trust and tap as above, then:
 brew install --build-from-source startergo/qemu-virgl-kosmickrisp/qemu
 
 # Or use the shorthand
@@ -40,7 +48,7 @@ brew install -s startergo/qemu-virgl-kosmickrisp/qemu
 - Disk space required: ~4GB for build artifacts
 - Requires Xcode Command Line Tools: `xcode-select --install`
 - The formula will download and build:
-  - QEMU from upstream GitLab master
+  - QEMU from the pinned upstream release (11.1.2, sha256-verified)
   - Vulkan SDK with KosmicKrisp component
   - Apply all patches automatically
 
