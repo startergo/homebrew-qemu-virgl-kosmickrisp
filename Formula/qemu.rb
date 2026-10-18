@@ -46,35 +46,41 @@ class Qemu < Formula
     # Install pyyaml for meson
     system "python3", "-m", "pip", "install", "--break-system-packages", "pyyaml"
 
-    # Download upstream QEMU source from GitLab master
-    upstream_url = "https://gitlab.com/qemu-project/qemu/-/archive/master/qemu-master.tar.gz"
-    ohai "Downloading upstream QEMU from #{upstream_url}"
-    system "curl", "-L", upstream_url, "-o", "qemu.tar.gz"
-    system "tar", "-xzf", "qemu.tar.gz", "--strip-components=1"
+    # Download pinned upstream QEMU release
+    upstream_url = "https://download.qemu.org/qemu-11.1.2.tar.xz"
+    upstream_sha256 = "731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016"
+    ohai "Downloading upstream QEMU #{upstream_url}..."
+    system "curl", "-L", upstream_url, "-o", "qemu.tar.xz"
+    verify = shell_output("shasum -a 256 qemu.tar.xz").split(" ").first
+    unless verify == upstream_sha256
+      odie "SHA256 mismatch for #{upstream_url}: got #{verify}"
+    end
+    system "tar", "-xJf", "qemu.tar.xz", "--strip-components=1"
 
-    # Apply audio/coreaudio fixes from qemu-opengl41.patch
-    # NOTE: Disabled - included in texture-borrowing patch
-    # patch_audio = "#{__dir__}/../patches/qemu-audio-coreaudio.patch"
-    # if File.exist?(patch_audio)
-    #   ohai "Applying audio/coreaudio fixes..."
-    #   system "patch", "-p1", "--batch", "--verbose", "-i", patch_audio
-    # end
+    # Apply the UTM Venus / VirGL macOS series (akihikodaki's VirGL 3D macOS
+    # work, evolved by utmapp/qemu with Metal + Vulkan/KosmicKrisp Venus
+    # support), rebased onto QEMU 11.1.2.
+    # https://github.com/utmapp/qemu branch submit/macos-venus
+    venus_patches = %w[
+      qemu-venus-console-h
+      qemu-venus-console-c
+      qemu-venus-virtio-gpu-virgl
+      qemu-venus-virtio-gpu
+      qemu-venus-egl-helpers
+      qemu-venus-build
+      qemu-venus-frontends
+      qemu-venus-cocoa
+    ]
+    venus_patches.each do |name|
+      patch_path = "#{__dir__}/../patches/#{name}.patch"
+      ohai "Applying #{name}.patch..."
+      system "patch", "-p1", "--batch", "--verbose", "-i", patch_path
+    end
 
-    # Apply @akihikodaki's VirGL 3D macOS texture borrowing patch
-    patch_texture_borrowing = "#{__dir__}/../patches/qemu-texture-borrowing.patch"
-    ohai "Applying VirGL 3D macOS texture borrowing patch..."
-    system "patch", "-p1", "--batch", "--verbose", "-i", patch_texture_borrowing
-
-    # Apply GPU spike and resolution fixes for texture-borrowing
+    # Apply GPU spike and resolution fix on top of the Venus cocoa GL stack
     patch_gpu_fix = "#{__dir__}/../patches/gpu-spike-resolution-fix.patch"
     ohai "Applying GPU spike and resolution fixes..."
     system "patch", "-p1", "--batch", "--verbose", "-i", patch_gpu_fix
-
-    # Apply NSOpenGLContext fix for Desktop GL (gl=core)
-    # NOTE: Disabled - conflicts with current upstream QEMU
-    # patch_nsopengl = "#{__dir__}/../patches/qemu-virgl3d-macos-nsopengl.patch"
-    # ohai "Applying NSOpenGLContext fix for Desktop GL..."
-    # system "patch", "-p1", "--batch", "--verbose", "-i", patch_nsopengl
 
     # Download and install Vulkan SDK with KosmicKrisp for Venus support
     # KosmicKrisp is an optional component that must be explicitly selected
@@ -134,6 +140,10 @@ class Qemu < Formula
       --disable-gtk
       --disable-guest-agent
       --disable-guest-agent-msi
+      # apple-gfx links the private ParavirtualizedGraphics.framework; its
+      # PGNewDeviceWithDescriptor symbol is gone on macOS 26 (Tahoe), so
+      # disable the pvg device or the link fails on current runners.
+      "-Dpvg=disabled"
     ]
 
     # Set pkg-config path for dependencies

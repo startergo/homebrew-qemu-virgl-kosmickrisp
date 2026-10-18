@@ -1,19 +1,24 @@
---- a/ui/cocoa.m	2026-01-13 20:17:13
-+++ b/ui/cocoa.m	2026-01-13 20:16:42
-@@ -2328,6 +2328,8 @@ static void cocoa_gl_render(void)
-     if (cocoa_gl_trace_enabled()) {
-         glFlush();
-         cocoa_gl_log_error("render end");
-+    /* Clear dirty flag after render completes to ensure clean handoff */
-+    gl_dirty = false;
+Fix GPU spike on resolution change: clear the dirty flag only after the
+render completes, so a resize event arriving mid-render does not drop a
+frame or trigger a duplicate render burst.
+
+Rebased onto the UTM venus cocoa GL stack (gl_dirty/cocoa_gl_render).
+
+--- a/ui/cocoa.m
++++ b/ui/cocoa.m
+@@ -2343,6 +2343,7 @@ static void cocoa_gl_render(void)
+         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+         surface_gl_render_texture(dgc.gls, surface);
      }
++    gl_dirty = false;
  }
- 
-@@ -2336,7 +2338,6 @@ static void cocoa_gl_refresh(DisplayChangeListener *dcl)
+
+ static void cocoa_gl_refresh(DisplayChangeListener *dcl)
+@@ -2351,7 +2352,6 @@ static void cocoa_gl_refresh(DisplayChangeListener *dcl)
      cocoa_refresh(dcl);
- 
+
      if (gl_dirty) {
 -        gl_dirty = false;
- 
-         if (cocoa_gl_trace_enabled()) {
-             cocoa_gl_log("refresh: triggering render dirty scanout=%d egl_surface=%d",
+
+ #ifdef CONFIG_EGL
+ #ifdef USE_METAL

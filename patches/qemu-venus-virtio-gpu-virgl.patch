@@ -1,0 +1,174 @@
+diff --git a/hw/display/virtio-gpu-virgl.c b/hw/display/virtio-gpu-virgl.c
+index 9bda57242..42be352dd 100644
+--- a/hw/display/virtio-gpu-virgl.c
++++ b/hw/display/virtio-gpu-virgl.c
+@@ -22,6 +22,7 @@
+ 
+ #include "ui/egl-helpers.h"
+ 
++#define VIRGL_RENDERER_UNSTABLE_APIS
+ #include <virglrenderer.h>
+ 
+ /*
+@@ -44,6 +45,9 @@
+ #define VIRGL_HAS_MAP_FIXED \
+     (VIRGL_CHECK_VERSION(1, 3, 0) && !IS_ENABLED(CONFIG_WIN32))
+ 
++#define NATIVE_HANDLE_SUPPORT_VERSION (1)
++
++
+ struct virtio_gpu_virgl_resource {
+     struct virtio_gpu_simple_resource base;
+     MemoryRegion *mr;
+@@ -562,15 +566,42 @@ static void virgl_cmd_set_scanout(VirtIOGPU *g,
+ 
+     if (ss.resource_id) {
+         struct virgl_renderer_resource_info info;
+-        void *d3d_tex2d = NULL;
++        ScanoutTextureNative native = NO_NATIVE_TEXTURE;
+ 
+ #if VIRGL_VERSION_MAJOR >= 1
+         struct virgl_renderer_resource_info_ext ext;
+         memset(&ext, 0, sizeof(ext));
+         ret = virgl_renderer_resource_get_info_ext(ss.resource_id, &ext);
+         info = ext.base;
+-        d3d_tex2d = ext.d3d_tex2d;
+-#else
++        /* fallback to older version */
++        native = (ScanoutTextureNative){
++            .type = ext.d3d_tex2d ? SCANOUT_TEXTURE_NATIVE_TYPE_D3D :
++                                    SCANOUT_TEXTURE_NATIVE_TYPE_NONE,
++            .handle = ext.d3d_tex2d,
++        };
++#if VIRGL_RENDERER_RESOURCE_INFO_EXT_VERSION >= NATIVE_HANDLE_SUPPORT_VERSION
++        if (ext.version >= VIRGL_RENDERER_RESOURCE_INFO_EXT_VERSION) {
++            switch (ext.native_type) {
++#ifdef CONFIG_METAL
++            case VIRGL_NATIVE_HANDLE_METAL_TEXTURE: {
++                native.type = SCANOUT_TEXTURE_NATIVE_TYPE_METAL;
++                native.handle = ext.native_handle;
++                break;
++            }
++#endif
++            case VIRGL_NATIVE_HANDLE_NONE:
++            case VIRGL_NATIVE_HANDLE_D3D_TEX2D: {
++                /* already handled above */
++                break;
++            }
++            default: {
++                /* ignore unsupported hint texture type */
++                break;
++            }
++            }
++        }
++#endif
++#else /* VIRGL_VERSION_MAJOR < 1 */
+         memset(&info, 0, sizeof(info));
+         ret = virgl_renderer_resource_get_info(ss.resource_id, &info);
+ #endif
+@@ -594,7 +625,7 @@ static void virgl_cmd_set_scanout(VirtIOGPU *g,
+             info.flags & VIRTIO_GPU_RESOURCE_FLAG_Y_0_TOP,
+             info.width, info.height,
+             ss.r.x, ss.r.y, ss.r.width, ss.r.height,
+-            d3d_tex2d);
++            native, NULL);
+     } else {
+         qemu_console_set_surface(g->parent_obj.scanout[ss.scanout_id].con, NULL);
+         qemu_console_gl_scanout_disable(g->parent_obj.scanout[ss.scanout_id].con);
+@@ -971,6 +1002,59 @@ static void virgl_cmd_resource_unmap_blob(VirtIOGPU *g,
+     }
+ }
+ 
++#if defined(HAVE_VIRGL_RENDERER_NATIVE_SCANOUT)
++static void virgl_scanout_native_blob_cleanup(ScanoutTextureNative *native)
++{
++    assert(native->type == SCANOUT_TEXTURE_NATIVE_TYPE_METAL);
++    virgl_renderer_release_handle_for_scanout(VIRGL_NATIVE_HANDLE_METAL_TEXTURE,
++                                              native->handle);
++}
++
++static bool virgl_scanout_native_blob(VirtIOGPU *g,
++                                      struct virtio_gpu_set_scanout_blob *ss)
++{
++    struct virtio_gpu_scanout *scanout = &g->parent_obj.scanout[ss->scanout_id];
++    enum virgl_renderer_native_handle_type type;
++    virgl_renderer_native_handle handle;
++    ScanoutTextureNative native;
++
++    type = virgl_renderer_create_handle_for_scanout(ss->resource_id,
++                                                    ss->width,
++                                                    ss->height,
++                                                    ss->format,
++                                                    ss->padding,
++                                                    ss->strides[0],
++                                                    ss->offsets[0],
++                                                    &handle);
++#ifdef CONFIG_METAL
++    if (type == VIRGL_NATIVE_HANDLE_METAL_TEXTURE) {
++        native = (ScanoutTextureNative){
++            .type = SCANOUT_TEXTURE_NATIVE_TYPE_METAL,
++            .handle = handle,
++        };
++        qemu_console_resize(scanout->con,
++                            ss->r.width, ss->r.height);
++        qemu_console_gl_scanout_texture(
++            scanout->con, 0,
++            false,
++            ss->width, ss->height,
++            ss->r.x, ss->r.y, ss->r.width, ss->r.height,
++            native, virgl_scanout_native_blob_cleanup);
++        scanout->resource_id = ss->resource_id;
++
++        return true;
++    }
++#endif
++
++    /* don't leak memory if handle type is unknown */
++    if (type != VIRGL_NATIVE_HANDLE_NONE) {
++        virgl_renderer_release_handle_for_scanout(type, handle);
++    }
++
++    return false;
++}
++#endif
++
+ static void virgl_cmd_set_scanout_blob(VirtIOGPU *g,
+                                        struct virtio_gpu_ctrl_command *cmd)
+ {
+@@ -1002,6 +1086,12 @@ static void virgl_cmd_set_scanout_blob(VirtIOGPU *g,
+         return;
+     }
+ 
++#if defined(HAVE_VIRGL_RENDERER_NATIVE_SCANOUT)
++    if (virgl_scanout_native_blob(g, &ss)) {
++        return;
++    }
++#endif
++
+     res = virtio_gpu_virgl_find_resource(g, ss.resource_id);
+     if (!res) {
+         qemu_log_mask(LOG_GUEST_ERROR, "%s: resource does not exist %d\n",
+@@ -1453,14 +1543,19 @@ static int virtio_gpu_virgl_init(VirtIOGPU *g)
+ #endif
+     }
+ #endif
+-#ifdef VIRGL_RENDERER_D3D11_SHARE_TEXTURE
+-    if (qemu_egl_angle_d3d) {
++    if (qemu_egl_angle_native_device) {
++#if defined(VIRGL_RENDERER_NATIVE_SHARE_TEXTURE)
++        flags |= VIRGL_RENDERER_NATIVE_SHARE_TEXTURE;
++#elif defined(VIRGL_RENDERER_D3D11_SHARE_TEXTURE) && defined(WIN32)
+         flags |= VIRGL_RENDERER_D3D11_SHARE_TEXTURE;
+-    }
+ #endif
++    }
+ #if VIRGL_VERSION_MAJOR >= 1
+     if (virtio_gpu_venus_enabled(g->parent_obj.conf)) {
+-        flags |= VIRGL_RENDERER_VENUS | VIRGL_RENDERER_RENDER_SERVER;
++        flags |= VIRGL_RENDERER_VENUS;
++#ifndef CONFIG_METAL /* Metal does not support render server */
++        flags |= VIRGL_RENDERER_RENDER_SERVER;
++#endif
+     }
+     if (virtio_gpu_drm_enabled(g->parent_obj.conf)) {
+         flags |= VIRGL_RENDERER_DRM;

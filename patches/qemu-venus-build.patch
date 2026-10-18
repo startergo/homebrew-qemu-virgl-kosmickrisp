@@ -1,0 +1,156 @@
+diff --git a/meson.build b/meson.build
+index 40e3f4ec4..62e5b05f2 100644
+--- a/meson.build
++++ b/meson.build
+@@ -829,6 +829,7 @@ version_res = []
+ coref = []
+ iokit = []
+ pvg = not_found
++metal = not_found
+ emulator_link_args = []
+ midl = not_found
+ widl = not_found
+@@ -856,6 +857,7 @@ elif host_os == 'darwin'
+   host_dsosuf = '.dylib'
+   pvg = dependency('appleframeworks', modules: ['ParavirtualizedGraphics', 'Metal'],
+                    required: get_option('pvg'))
++  metal = dependency('appleframeworks', modules: 'Metal', required: false)
+ elif host_os == 'sunos'
+   socket = [cc.find_library('socket'),
+             cc.find_library('nsl'),
+@@ -1221,7 +1223,7 @@ if get_option('attr').allowed()
+ endif
+ 
+ cocoa = dependency('appleframeworks',
+-                   modules: ['Cocoa', 'CoreVideo', 'QuartzCore'],
++                   modules: ['Cocoa', 'CoreVideo', 'OpenGL', 'QuartzCore'],
+                    required: get_option('cocoa'))
+ 
+ vmnet = dependency('appleframeworks', modules: 'vmnet', required: get_option('vmnet'))
+@@ -1768,14 +1770,13 @@ if not get_option('coreaudio').auto() or (host_os == 'darwin' and have_system)
+                          required: get_option('coreaudio'))
+ endif
+ 
++egl = not_found
+ opengl = not_found
+ if not get_option('opengl').auto() or have_system or have_vhost_user_gpu
+-  epoxy = dependency('epoxy', method: 'pkg-config',
++  opengl = dependency('epoxy', method: 'pkg-config',
+                       required: get_option('opengl'))
+-  if cc.has_header('epoxy/egl.h', dependencies: epoxy)
+-    opengl = epoxy
+-  elif get_option('opengl').enabled()
+-    error('epoxy/egl.h not found')
++  if cc.has_header('epoxy/egl.h', dependencies: opengl)
++    egl = opengl
+   endif
+ endif
+ gbm = not_found
+@@ -2477,6 +2478,7 @@ if numa.found()
+                        cc.has_function('numa_has_preferred_many',
+                                        dependencies: numa))
+ endif
++config_host_data.set('CONFIG_EGL', egl.found())
+ config_host_data.set('CONFIG_OPENGL', opengl.found())
+ config_host_data.set('CONFIG_PLUGIN', get_option('plugins'))
+ config_host_data.set('CONFIG_RBD', rbd.found())
+@@ -2518,6 +2520,11 @@ config_host_data.set('CONFIG_VNC', vnc.found())
+ config_host_data.set('CONFIG_VNC_JPEG', jpeg.found())
+ config_host_data.set('CONFIG_VNC_SASL', sasl.found())
+ if virgl.found()
++  config_host_data.set('HAVE_VIRGL_RENDERER_NATIVE_SCANOUT',
++                        cc.has_function('virgl_renderer_create_handle_for_scanout',
++                                        args: '-DVIRGL_RENDERER_UNSTABLE_APIS',
++                                        prefix: '#include <virglrenderer.h>',
++                                        dependencies: virgl))
+   config_host_data.set('VIRGL_VERSION_MAJOR', virgl.version().split('.')[0])
+   config_host_data.set('VIRGL_VERSION_MINOR', virgl.version().split('.')[1])
+   config_host_data.set('VIRGL_VERSION_MICRO', virgl.version().split('.')[2])
+@@ -2565,6 +2572,7 @@ if xen.found()
+     ('0' + xen_version[2]).substring(-2)
+   config_host_data.set('CONFIG_XEN_CTRL_INTERFACE_VERSION', xen_ctrl_version)
+ endif
++config_host_data.set('CONFIG_METAL', metal.found())
+ config_host_data.set('QEMU_VERSION', '"@0@"'.format(meson.project_version()))
+ config_host_data.set('QEMU_VERSION_MAJOR', meson.project_version().split('.')[0])
+ config_host_data.set('QEMU_VERSION_MINOR', meson.project_version().split('.')[1])
+diff --git a/qapi/ui.json b/qapi/ui.json
+index b2c42a7f5..2f872675f 100644
+--- a/qapi/ui.json
++++ b/qapi/ui.json
+@@ -1525,7 +1525,8 @@
+     { 'name': 'none' },
+     { 'name': 'gtk', 'if': 'CONFIG_GTK' },
+     { 'name': 'sdl', 'if': 'CONFIG_SDL' },
+-    { 'name': 'egl-headless', 'if': 'CONFIG_OPENGL' },
++    { 'name': 'egl-headless',
++              'if': { 'all': ['CONFIG_OPENGL', 'CONFIG_EGL'] } },
+     { 'name': 'curses', 'if': 'CONFIG_CURSES' },
+     { 'name': 'cocoa', 'if': 'CONFIG_COCOA' },
+     { 'name': 'spice-app', 'if': 'CONFIG_SPICE' },
+@@ -1565,7 +1566,7 @@
+       'cocoa': { 'type': 'DisplayCocoa', 'if': 'CONFIG_COCOA' },
+       'curses': { 'type': 'DisplayCurses', 'if': 'CONFIG_CURSES' },
+       'egl-headless': { 'type': 'DisplayEGLHeadless',
+-                        'if': 'CONFIG_OPENGL' },
++                        'if': { 'all': ['CONFIG_OPENGL', 'CONFIG_EGL'] } },
+       'dbus': { 'type': 'DisplayDBus', 'if': 'CONFIG_DBUS_DISPLAY' },
+       'sdl': { 'type': 'DisplaySDL', 'if': 'CONFIG_SDL' }
+   }
+diff --git a/qemu-options.hx b/qemu-options.hx
+index 34970fffc..6ab74ec72 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -2262,7 +2262,7 @@ DEF("display", HAS_ARG, QEMU_OPTION_display,
+     "              [,show-cursor=on|off][,left-command-key=on|off]\n"
+     "              [,full-screen=on|off][,zoom-to-fit=on|off]\n"
+ #endif
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+     "-display egl-headless[,rendernode=<file>]\n"
+ #endif
+ #if defined(CONFIG_DBUS_DISPLAY)
+diff --git a/ui/meson.build b/ui/meson.build
+index d345f6c70..b52938cd7 100644
+--- a/ui/meson.build
++++ b/ui/meson.build
+@@ -103,14 +103,16 @@ if opengl.found()
+   opengl_ss = ss.source_set()
+   opengl_ss.add(gbm, pixman)
+   opengl_ss.add(when: [opengl],
+-               if_true: files('shader.c', 'console-gl.c', 'egl-helpers.c', 'egl-context.c'))
++               if_true: files('shader.c', 'console-gl.c'))
++  opengl_ss.add(when: [egl, opengl],
++               if_true: files('egl-helpers.c', 'egl-context.c'))
+   ui_modules += {'opengl' : opengl_ss}
+ endif
+ 
+ if opengl.found()
+   egl_headless_ss = ss.source_set()
+-  egl_headless_ss.add(when: [opengl, pixman],
+-                      if_true: [files('egl-headless.c'), gbm])
++  egl_headless_ss.add(when: [egl, opengl, gbm, pixman],
++                      if_true: files('egl-headless.c'))
+   ui_modules += {'egl-headless' : egl_headless_ss}
+ endif
+ 
+@@ -156,8 +158,8 @@ if gtk.found()
+   gtk_ss.add(gtk, vte, pixman, files('gtk.c'))
+   gtk_ss.add(files('gtk-clipboard.c'))
+   gtk_ss.add(when: x11, if_true: files('x_keymap.c'))
+-  gtk_ss.add(when: opengl, if_true: files('gtk-gl-area.c'))
+-  gtk_ss.add(when: [x11, opengl], if_true: files('gtk-egl.c'))
++  gtk_ss.add(when: [egl, opengl], if_true: files('gtk-gl-area.c'))
++  gtk_ss.add(when: [egl, x11, opengl], if_true: files('gtk-egl.c'))
+   ui_modules += {'gtk' : gtk_ss}
+ endif
+ 
+@@ -168,7 +170,7 @@ if sdl.found()
+     'sdl2-input.c',
+     'sdl2.c',
+   ))
+-  sdl_ss.add(when: opengl, if_true: files('sdl2-gl.c'))
++  sdl_ss.add(when: [egl, opengl], if_true: files('sdl2-gl.c'))
+   sdl_ss.add(when: x11, if_true: files('x_keymap.c'))
+   ui_modules += {'sdl' : sdl_ss}
+ endif

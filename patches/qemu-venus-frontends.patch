@@ -1,0 +1,456 @@
+diff --git a/include/ui/gtk.h b/include/ui/gtk.h
+index 5c9c34a06..5baa8e780 100644
+--- a/include/ui/gtk.h
++++ b/include/ui/gtk.h
+@@ -21,7 +21,7 @@
+ #include "ui/clipboard.h"
+ #include "ui/console.h"
+ #include "ui/kbd-state.h"
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+ #include "ui/egl-helpers.h"
+ #include "ui/egl-context.h"
+ #endif
+@@ -44,7 +44,7 @@ typedef struct VirtualGfxConsole {
+     double preferred_scale;
+     double scale_x;
+     double scale_y;
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+     QemuGLShader *gls;
+     EGLContext ectx;
+     EGLSurface esurface;
+@@ -180,7 +180,7 @@ void gd_egl_scanout_texture(DisplayChangeListener *dcl,
+                             uint32_t backing_height,
+                             uint32_t x, uint32_t y,
+                             uint32_t w, uint32_t h,
+-                            void *d3d_tex2d);
++                            ScanoutTextureNative native);
+ void gd_egl_scanout_dmabuf(DisplayChangeListener *dcl,
+                            QemuDmaBuf *dmabuf);
+ void gd_egl_cursor_dmabuf(DisplayChangeListener *dcl,
+@@ -217,7 +217,7 @@ void gd_gl_area_scanout_texture(DisplayChangeListener *dcl,
+                                 uint32_t backing_height,
+                                 uint32_t x, uint32_t y,
+                                 uint32_t w, uint32_t h,
+-                                void *d3d_tex2d);
++                                ScanoutTextureNative native);
+ void gd_gl_area_scanout_disable(DisplayChangeListener *dcl);
+ void gd_gl_area_scanout_flush(DisplayChangeListener *dcl,
+                               uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+diff --git a/include/ui/sdl2.h b/include/ui/sdl2.h
+index 9daf5ecff..7b7e16f30 100644
+--- a/include/ui/sdl2.h
++++ b/include/ui/sdl2.h
+@@ -22,7 +22,7 @@
+ #endif
+ 
+ #include "ui/kbd-state.h"
+-#ifdef CONFIG_OPENGL
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+ # include "ui/egl-helpers.h"
+ #endif
+ 
+@@ -46,7 +46,7 @@ struct sdl2_console {
+     SDL_GLContext winctx;
+     QKbdState *kbd;
+     bool has_dmabuf;
+-#ifdef CONFIG_OPENGL
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+     QemuGLShader *gls;
+     egl_fb guest_fb;
+     egl_fb win_fb;
+@@ -94,7 +94,7 @@ void sdl2_gl_scanout_texture(DisplayChangeListener *dcl,
+                              uint32_t backing_height,
+                              uint32_t x, uint32_t y,
+                              uint32_t w, uint32_t h,
+-                             void *d3d_tex2d);
++                             ScanoutTextureNative native);
+ void sdl2_gl_scanout_flush(DisplayChangeListener *dcl,
+                            uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+ void sdl2_gl_scanout_dmabuf(DisplayChangeListener *dcl,
+diff --git a/include/ui/spice-display.h b/include/ui/spice-display.h
+index a382553fa..b37e278db 100644
+--- a/include/ui/spice-display.h
++++ b/include/ui/spice-display.h
+@@ -27,7 +27,7 @@
+ #include "ui/qemu-pixman.h"
+ #include "ui/console.h"
+ 
+-#if defined(CONFIG_OPENGL) && defined(CONFIG_GBM)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL) && defined(CONFIG_GBM)
+ #  define HAVE_SPICE_GL 1
+ #  include "ui/egl-helpers.h"
+ #  include "ui/egl-context.h"
+diff --git a/ui/dbus-console.c b/ui/dbus-console.c
+index e1ac06814..7c3d665c2 100644
+--- a/ui/dbus-console.c
++++ b/ui/dbus-console.c
+@@ -101,7 +101,7 @@ dbus_gl_scanout_texture(DisplayChangeListener *dcl,
+                         uint32_t backing_height,
+                         uint32_t x, uint32_t y,
+                         uint32_t w, uint32_t h,
+-                        void *d3d_tex2d)
++                        ScanoutTextureNative native)
+ {
+     DBusDisplayConsole *ddc = container_of(dcl, DBusDisplayConsole, dcl);
+ 
+diff --git a/ui/dbus-listener.c b/ui/dbus-listener.c
+index 2e2f6ba41..d524d5fc0 100644
+--- a/ui/dbus-listener.c
++++ b/ui/dbus-listener.c
+@@ -587,7 +587,7 @@ static void dbus_scanout_texture(DisplayChangeListener *dcl,
+                                  uint32_t backing_height,
+                                  uint32_t x, uint32_t y,
+                                  uint32_t w, uint32_t h,
+-                                 void *d3d_tex2d)
++                                 ScanoutTextureNative native)
+ {
+     trace_dbus_scanout_texture(tex_id, backing_y_0_top,
+                                backing_width, backing_height, x, y, w, h);
+@@ -618,8 +618,8 @@ static void dbus_scanout_texture(DisplayChangeListener *dcl,
+     assert(surface_width(ddl->ds) == w);
+     assert(surface_height(ddl->ds) == h);
+ 
+-    if (d3d_tex2d) {
+-        dbus_scanout_share_d3d_texture(ddl, d3d_tex2d, backing_y_0_top,
++    if (native.type == SCANOUT_TEXTURE_NATIVE_TYPE_D3D) {
++        dbus_scanout_share_d3d_texture(ddl, native.handle, backing_y_0_top,
+                                        backing_width, backing_height, x, y, w, h);
+     } else {
+         dbus_scanout_map(ddl);
+@@ -868,7 +868,7 @@ static void dbus_gl_gfx_switch(DisplayChangeListener *dcl,
+ 
+         /* TODO: lazy send dmabuf (there are unnecessary sent otherwise) */
+         dbus_scanout_texture(&ddl->dcl, ddl->ds->texture, false,
+-                             width, height, 0, 0, width, height, NULL);
++                             width, height, 0, 0, width, height, NO_NATIVE_TEXTURE);
+     }
+ }
+ #endif
+diff --git a/ui/egl-headless.c b/ui/egl-headless.c
+index ba27efcf4..ba1734a34 100644
+--- a/ui/egl-headless.c
++++ b/ui/egl-headless.c
+@@ -63,7 +63,7 @@ static void egl_scanout_texture(DisplayChangeListener *dcl,
+                                 uint32_t backing_height,
+                                 uint32_t x, uint32_t y,
+                                 uint32_t w, uint32_t h,
+-                                void *d3d_tex2d)
++                                ScanoutTextureNative native)
+ {
+     egl_dpy *edpy = container_of(dcl, egl_dpy, dcl);
+ 
+@@ -98,7 +98,7 @@ static void egl_scanout_dmabuf(DisplayChangeListener *dcl,
+     height = qemu_dmabuf_get_height(dmabuf);
+ 
+     egl_scanout_texture(dcl, texture, false, width, height, 0, 0,
+-                        width, height, NULL);
++                        width, height, NO_NATIVE_TEXTURE);
+ }
+ 
+ static void egl_cursor_dmabuf(DisplayChangeListener *dcl,
+diff --git a/ui/gtk-egl.c b/ui/gtk-egl.c
+index adc81f34b..9deadcf1d 100644
+--- a/ui/gtk-egl.c
++++ b/ui/gtk-egl.c
+@@ -57,7 +57,7 @@ void gd_egl_init(VirtualConsole *vc)
+     }
+ 
+     vc->gfx.ectx = qemu_egl_init_ctx();
+-    vc->gfx.esurface = qemu_egl_init_surface_x11
++    vc->gfx.esurface = qemu_egl_init_surface
+         (vc->gfx.ectx, (EGLNativeWindowType)x11_window);
+ 
+     assert(vc->gfx.esurface);
+@@ -237,7 +237,7 @@ void gd_egl_scanout_texture(DisplayChangeListener *dcl,
+                             uint32_t backing_width, uint32_t backing_height,
+                             uint32_t x, uint32_t y,
+                             uint32_t w, uint32_t h,
+-                            void *d3d_tex2d)
++                            ScanoutTextureNative native)
+ {
+     VirtualConsole *vc = container_of(dcl, VirtualConsole, gfx.dcl);
+ 
+@@ -288,7 +288,7 @@ void gd_egl_scanout_dmabuf(DisplayChangeListener *dcl,
+     y0_top = qemu_dmabuf_get_y0_top(dmabuf);
+ 
+     gd_egl_scanout_texture(dcl, texture, y0_top, backing_width, backing_height,
+-                           x, y, width, height, NULL);
++                           x, y, width, height, NO_NATIVE_TEXTURE);
+ 
+     if (qemu_dmabuf_get_allow_fences(dmabuf)) {
+         vc->gfx.guest_fb.dmabuf = dmabuf;
+diff --git a/ui/gtk-gl-area.c b/ui/gtk-gl-area.c
+index 29497019e..58db9c14b 100644
+--- a/ui/gtk-gl-area.c
++++ b/ui/gtk-gl-area.c
+@@ -291,7 +291,7 @@ void gd_gl_area_scanout_texture(DisplayChangeListener *dcl,
+                                 uint32_t backing_height,
+                                 uint32_t x, uint32_t y,
+                                 uint32_t w, uint32_t h,
+-                                void *d3d_tex2d)
++                                ScanoutTextureNative native)
+ {
+     VirtualConsole *vc = container_of(dcl, VirtualConsole, gfx.dcl);
+ 
+@@ -358,7 +358,7 @@ void gd_gl_area_scanout_dmabuf(DisplayChangeListener *dcl,
+ 
+     gd_gl_area_scanout_texture(dcl, texture, y0_top,
+                                backing_width, backing_height,
+-                               x, y, width, height, NULL);
++                               x, y, width, height, NO_NATIVE_TEXTURE);
+ 
+     if (qemu_dmabuf_get_allow_fences(dmabuf)) {
+         vc->gfx.guest_fb.dmabuf = dmabuf;
+diff --git a/ui/gtk.c b/ui/gtk.c
+index 7078d89d6..7a7e47fa9 100644
+--- a/ui/gtk.c
++++ b/ui/gtk.c
+@@ -348,7 +348,7 @@ static void gd_update_full_redraw(VirtualConsole *vc)
+     int ww, wh;
+     ww = gdk_window_get_width(gtk_widget_get_window(area));
+     wh = gdk_window_get_height(gtk_widget_get_window(area));
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+     if (vc->gfx.gls && gtk_use_gl_area) {
+         gtk_gl_area_queue_render(GTK_GL_AREA(vc->gfx.drawing_area));
+         return;
+@@ -569,7 +569,7 @@ static const DisplayChangeListenerOps dcl_ops = {
+ };
+ 
+ 
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+ 
+ static bool gd_has_dmabuf(DisplayChangeListener *dcl)
+ {
+@@ -680,7 +680,7 @@ static const DisplayGLCtxOps egl_ctx_ops = {
+ };
+ #endif
+ 
+-#endif /* CONFIG_OPENGL */
++#endif /* defined(CONFIG_OPENGL) && defined(CONFIG_EGL) */
+ 
+ /** QEMU Events **/
+ 
+@@ -758,7 +758,7 @@ static void gd_set_ui_size(VirtualConsole *vc, gint width, gint height)
+     qemu_console_set_ui_info(vc->gfx.dcl.con, &info, true);
+ }
+ 
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+ 
+ static gboolean gd_render_event(GtkGLArea *area, GdkGLContext *context,
+                                 void *opaque)
+@@ -912,7 +912,7 @@ static gboolean gd_draw_event(GtkWidget *widget, cairo_t *cr, void *opaque)
+     int ww_widget, wh_widget, ww_surface, wh_surface;
+     int fbw, fbh;
+ 
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+     if (vc->gfx.gls) {
+         if (gtk_use_gl_area) {
+             /* invoke render callback please */
+@@ -1497,7 +1497,7 @@ static gboolean gd_tab_window_close(GtkWidget *widget, GdkEvent *event,
+     g_object_unref(vc->tab_item);
+     gtk_widget_destroy(vc->window);
+     vc->window = NULL;
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+     if (vc->gfx.esurface) {
+         eglDestroySurface(qemu_egl_display, vc->gfx.esurface);
+         vc->gfx.esurface = NULL;
+@@ -1542,7 +1542,7 @@ static void gd_menu_untabify(GtkMenuItem *item, void *opaque)
+     }
+     if (!vc->window) {
+         vc->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+         if (vc->gfx.esurface) {
+             eglDestroySurface(qemu_egl_display, vc->gfx.esurface);
+             vc->gfx.esurface = NULL;
+@@ -2199,7 +2199,7 @@ static void gd_connect_vc_gfx_signals(VirtualConsole *vc)
+ {
+     g_signal_connect(vc->gfx.drawing_area, "draw",
+                      G_CALLBACK(gd_draw_event), vc);
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+     if (gtk_use_gl_area) {
+         /* wire up GtkGlArea events */
+         g_signal_connect(vc->gfx.drawing_area, "render",
+@@ -2315,7 +2315,7 @@ static GtkWidget *gd_create_menu_machine(GtkDisplayState *s)
+     return machine_menu;
+ }
+ 
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+ static void gl_area_realize(GtkGLArea *area, VirtualConsole *vc)
+ {
+     gtk_gl_area_make_current(area);
+@@ -2354,7 +2354,7 @@ add_gfx_console(GtkDisplayState *s, QemuConsole *con)
+     vc->gfx.scale_x = vc->gfx.preferred_scale;
+     vc->gfx.scale_y = vc->gfx.preferred_scale;
+ 
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+     if (display_opengl) {
+         if (gtk_use_gl_area) {
+             vc->gfx.drawing_area = gtk_gl_area_new();
+@@ -2849,7 +2849,7 @@ static void early_gtk_display_init(DisplayOptions *opts)
+ 
+     assert(opts->type == DISPLAY_TYPE_GTK);
+     if (opts->has_gl && opts->gl != DISPLAY_GL_MODE_OFF) {
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+ #if defined(GDK_WINDOWING_WAYLAND)
+         if (GDK_IS_WAYLAND_DISPLAY(gdk_display_get_default())) {
+             gtk_use_gl_area = true;
+@@ -2912,6 +2912,6 @@ static void register_gtk(void)
+ 
+ type_init(register_gtk);
+ 
+-#ifdef CONFIG_OPENGL
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+ module_dep("ui-opengl");
+ #endif
+diff --git a/ui/sdl2-gl.c b/ui/sdl2-gl.c
+index 1547ad2f6..2767f5e69 100644
+--- a/ui/sdl2-gl.c
++++ b/ui/sdl2-gl.c
+@@ -212,7 +212,7 @@ void sdl2_gl_scanout_texture(DisplayChangeListener *dcl,
+                              uint32_t backing_height,
+                              uint32_t x, uint32_t y,
+                              uint32_t w, uint32_t h,
+-                             void *d3d_tex2d)
++                             ScanoutTextureNative native)
+ {
+     struct sdl2_console *scon = container_of(dcl, struct sdl2_console, dcl);
+ 
+diff --git a/ui/sdl2.c b/ui/sdl2.c
+index 1c97d23a4..8b19e15b7 100644
+--- a/ui/sdl2.c
++++ b/ui/sdl2.c
+@@ -97,7 +97,7 @@ void sdl2_window_create(struct sdl2_console *scon)
+     if (scon->hidden) {
+         flags |= SDL_WINDOW_HIDDEN;
+     }
+-#ifdef CONFIG_OPENGL
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+     if (scon->opengl) {
+         flags |= SDL_WINDOW_OPENGL;
+     }
+@@ -166,7 +166,7 @@ void sdl2_window_resize(struct sdl2_console *scon)
+ static void sdl2_redraw(struct sdl2_console *scon)
+ {
+     if (scon->opengl) {
+-#ifdef CONFIG_OPENGL
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+         sdl2_gl_redraw(scon);
+ #endif
+     } else {
+@@ -822,7 +822,7 @@ static const DisplayChangeListenerOps dcl_2d_ops = {
+     .dpy_cursor_define    = sdl_mouse_define,
+ };
+ 
+-#ifdef CONFIG_OPENGL
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+ static const DisplayChangeListenerOps dcl_gl_ops = {
+     .dpy_name                = "sdl2-gl",
+     .dpy_gfx_update          = sdl2_gl_update,
+@@ -862,7 +862,7 @@ static void sdl2_display_early_init(DisplayOptions *o)
+ {
+     assert(o->type == DISPLAY_TYPE_SDL);
+     if (o->has_gl && o->gl) {
+-#ifdef CONFIG_OPENGL
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+         display_opengl = 1;
+ #endif
+     }
+@@ -961,7 +961,7 @@ static void sdl2_display_init(DisplayState *ds, DisplayOptions *o)
+         }
+         sdl2_console[i].idx = i;
+         sdl2_console[i].opts = o;
+-#ifdef CONFIG_OPENGL
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+         sdl2_console[i].opengl = display_opengl;
+         sdl2_console[i].dgc.ops = display_opengl ? &gl_ctx_ops : NULL;
+         ops = display_opengl ? &dcl_gl_ops : &dcl_2d_ops;
+@@ -1032,6 +1032,6 @@ static void register_sdl1(void)
+ 
+ type_init(register_sdl1);
+ 
+-#ifdef CONFIG_OPENGL
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+ module_dep("ui-opengl");
+ #endif
+diff --git a/ui/shader.c b/ui/shader.c
+index 76ee4c327..b1c39d691 100644
+--- a/ui/shader.c
++++ b/ui/shader.c
+@@ -153,11 +153,19 @@ end:
+ QemuGLShader *qemu_gl_init_shader(void)
+ {
+     QemuGLShader *gls = g_new0(QemuGLShader, 1);
+-
++    const char *header = epoxy_is_desktop_gl() ? "#version 140\n" : "#version 300 es\n";
++    char vert_src[256];
++    char frag_src[256];
++    char *vert_src_body = stpcpy(vert_src, header);
++    char *frag_src_body = stpcpy(frag_src, header);
++
++    strcpy(vert_src_body, texture_blit_vert_src);
++    strcpy(frag_src_body, texture_blit_frag_src);
+     gls->texture_blit_prog = qemu_gl_create_compile_link_program
+-        (texture_blit_vert_src, texture_blit_frag_src);
++        (vert_src, frag_src);
++    strcpy(vert_src_body, texture_blit_flip_vert_src);
+     gls->texture_blit_flip_prog = qemu_gl_create_compile_link_program
+-        (texture_blit_flip_vert_src, texture_blit_frag_src);
++        (vert_src, frag_src);
+     if (!gls->texture_blit_prog || !gls->texture_blit_flip_prog) {
+         exit(1);
+     }
+diff --git a/ui/shader/texture-blit-flip.vert b/ui/shader/texture-blit-flip.vert
+index f7a448d22..1e4ac4c94 100644
+--- a/ui/shader/texture-blit-flip.vert
++++ b/ui/shader/texture-blit-flip.vert
+@@ -1,5 +1,3 @@
+-#version 300 es
+-
+ in vec2  in_position;
+ out vec2 ex_tex_coord;
+ 
+diff --git a/ui/shader/texture-blit.frag b/ui/shader/texture-blit.frag
+index 8ed95a46b..bd296a2ff 100644
+--- a/ui/shader/texture-blit.frag
++++ b/ui/shader/texture-blit.frag
+@@ -1,5 +1,3 @@
+-#version 300 es
+-
+ uniform sampler2D image;
+ in  mediump vec2 ex_tex_coord;
+ out mediump vec4 out_frag_color;
+diff --git a/ui/shader/texture-blit.vert b/ui/shader/texture-blit.vert
+index fb48d7066..ae205f637 100644
+--- a/ui/shader/texture-blit.vert
++++ b/ui/shader/texture-blit.vert
+@@ -1,5 +1,3 @@
+-#version 300 es
+-
+ in vec2  in_position;
+ out vec2 ex_tex_coord;
+ 
+diff --git a/ui/spice-display.c b/ui/spice-display.c
+index 75c7df7bb..c861ef82e 100644
+--- a/ui/spice-display.c
++++ b/ui/spice-display.c
+@@ -1078,7 +1078,7 @@ static void qemu_spice_gl_scanout_texture(DisplayChangeListener *dcl,
+                                           uint32_t backing_height,
+                                           uint32_t x, uint32_t y,
+                                           uint32_t w, uint32_t h,
+-                                          void *d3d_tex2d)
++                                          ScanoutTextureNative native)
+ {
+     SimpleSpiceDisplay *ssd = container_of(dcl, SimpleSpiceDisplay, dcl);
+     EGLint offset[DMABUF_MAX_PLANES], stride[DMABUF_MAX_PLANES], fourcc = 0;
