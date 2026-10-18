@@ -313,6 +313,12 @@ jobs:
           export HOMEBREW_NO_INSTALL_FROM_API=1
           brew uninstall qemu --force 2>/dev/null || true
 
+          # Tap dependent taps explicitly (required since Homebrew
+          # stopped auto-tapping taps referenced by dependencies)
+          brew tap startergo/angle
+          brew tap startergo/libepoxy
+          brew tap startergo/virglrenderer
+
           # Build bottle (dependencies auto-install via formula depends_on)
           brew install --build-bottle startergo/qemu-virgl-kosmickrisp/qemu
           brew link --overwrite qemu || true
