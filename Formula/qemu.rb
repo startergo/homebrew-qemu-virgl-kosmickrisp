@@ -51,7 +51,7 @@ class Qemu < Formula
     upstream_sha256 = "731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016"
     ohai "Downloading upstream QEMU #{upstream_url}..."
     system "curl", "-L", upstream_url, "-o", "qemu.tar.xz"
-    verify = shell_output("shasum -a 256 qemu.tar.xz").split(" ").first
+    verify = Utils.safe_popen_read("shasum", "-a", "256", "qemu.tar.xz").split(" ").first
     unless verify == upstream_sha256
       odie "SHA256 mismatch for #{upstream_url}: got #{verify}"
     end
