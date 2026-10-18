@@ -26,6 +26,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   determine-version:
@@ -100,6 +101,25 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Wait for in-flight bottle builds to finish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Never move tags or rewrite the formula while a bottle build
+          # is running -- its pushes would conflict and the tag/tarball
+          # would get out of step with the formula.
+          while :; do
+            OTHERS=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow bottle.yml \
+              --status in_progress --json databaseId \
+              --jq ".[] | select(.databaseId != $GITHUB_RUN_ID) | .databaseId")
+            if [ -z "$OTHERS" ]; then
+              echo "No other Build Bottles runs in progress."
+              break
+            fi
+            echo "Build in progress (run $OTHERS), waiting 60s..."
+            sleep 60
+          done
 
       - name: Check if we should run
         id: check
@@ -316,10 +336,11 @@ jobs:
           # Tap and trust dependent taps explicitly (required since
           # Homebrew stopped auto-tapping/auto-trusting taps referenced
           # by dependencies)
+          brew tap startergo/gn
           brew tap startergo/angle
           brew tap startergo/libepoxy
           brew tap startergo/virglrenderer
-          brew trust startergo/angle startergo/libepoxy startergo/virglrenderer
+          brew trust startergo/gn startergo/angle startergo/libepoxy startergo/virglrenderer
 
           # Build bottle (dependencies auto-install via formula depends_on)
           brew install --build-bottle startergo/qemu-virgl-kosmickrisp/qemu
@@ -393,6 +414,11 @@ jobs:
 
           echo "=== Formula with tag URL (temporary) ==="
           head -20 Formula/qemu.rb
+
+          # Rebase onto current master in case a source-tarball update
+          # landed while the bottle was building
+          git fetch origin master
+          git reset --soft "origin/master"
 
           git add Formula/qemu.rb
           git commit -m "Update to v$VERSION with bottles"
